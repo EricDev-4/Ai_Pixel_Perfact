@@ -6,7 +6,8 @@ description: Turn GPT Image (Codex / ChatGPT) pixel art into pixel-perfect, game
 # pixel-sprite
 
 All generation uses **GPT Image** (no video models). Roles: Claude writes prompts, reviews every image, runs `sprite.py`; GPT Image generates.
-Core loop: **generate → pixel-snap → integer NN upscale → use as the reference for the next generation.**
+Core loop: **generate on a fixed dot grid → pixel-snap at that grid → integer NN upscale → use as the reference for the next generation.**
+Dot size (AGENTS.md): 1 dot = 1 px in every saved file, the engine scales x2. Never resize native art. Runtime cells are 64x64 dots; a normal character fits in 32x32 dots (`--set BODY_DOTS=N` for larger tiers). Generation grids: 16 px per dot on 1024 single frames, 8 px per dot on the 2048x1536 pose board (512 px cell = 64 dots).
 User guide (Korean): `USAGE.md` (also in Bear: "pixel-sprite 사용법").
 Multi-model setup (Fable conductor, Opus `sprite-qa`, Codex generator): `ORCHESTRA.md` — when asked to install it, follow its "설치 절차".
 
@@ -21,23 +22,31 @@ Inputs: filled prompt file + ordered refs + target path.
 1. If `command -v codex`: `sprite.py gen PROMPT.txt OUT.png --ref A --ref B [--ref C]`. It rejects fake output (<1024px, script-drawn).
    codex-cli 0.166 `exec` did not expose image_gen → expect failure, fall to 2; don't loop.
 2. Manual: tell the user tool (ChatGPT / Codex app), settings (**PNG, high quality, 1 image; square 1024 for single frames, largest landscape size for sheets; edit mode when refs**), the refs **in order**, the prompt file path (offer to `pbcopy` it), and the exact save path. Wait.
-Always Read the result before continuing. Reject and regenerate on identity drift, wrong facing, green clothing, or missing chroma background.
+Always Read the result before continuing. Reject and regenerate on identity drift, wrong facing, magenta clothing, or missing chroma background.
 
 ## Workflow (job folder `./sprites/<char>/`)
-1. `sprite.py refs sprites/<c>/refs` → checker_1024, poseboard_2048x1536, walkguide_8, walkguide_4.
-2. Source: `prompt source --set CONCEPT="..."` → generate (no refs) → `source.png`. The template already draws a left-facing side view, so the source is the west anchor.
-3. Anchor: `snap source.png <scratch>/check.png --native anchor_west_native.png` → record `pixel_size` (tell the user). Keep only the native file in the job folder; the enlarged preview goes to scratch and is not kept. Create the enlarged `anchor_west.png` only when it is needed as a generation reference (the first action sheet, fix, or inbetween): `snap originals/source.png anchor_west.png --pixel-size P` (same P gives a byte-identical file). Move `source.png` to `originals/` after snapping.
+1. `sprite.py refs sprites/<c>/refs` → checker_1024 (16 px dot grid), poseboard_2048x1536 (8 px dot grid), walkguide_8, walkguide_4.
+2. Source: `prompt source --set CONCEPT="..."` → generate with refs `[refs/checker_1024.png]` → `source.png`. Tested 2026-11-17: this prompt (BODY_DOTS=32, half canvas) gives a clean ~30x40-dot character at ~16 px blocks, which is the protagonist standard. The model's block size cannot be forced by prompt; never shrink a result to fewer dots (coarser snap) - it smears faces and hands. The template already draws a left-facing side view, so the source is the west anchor.
+3. Anchor: `snap source.png <scratch>/check.png --native anchor_west_native.png` (16 px grid by default; a WARNING means the model ignored the grid and the dot size may differ → regenerate) → tell the user the character size in dots. Keep only the native file in the job folder; the enlarged preview goes to scratch and is not kept. Create the enlarged `anchor_west.png` only when it is needed as a generation reference (the first action sheet, fix, or inbetween): `up anchor_west_native.png anchor_west.png` (x16 = the generation grid). Move `source.png` to `originals/` after snapping.
    **Generation budget: 1 image per character + 1 per requested action. Bad frames: drop with `--pick` first; generate a fix only when the cycle breaks without that frame.**
 4. Direction (skip by default — only when the user explicitly asks for another direction): `prompt direction --set DIRECTION_NAME=west --set DIRECTION_DESCRIPTION="side view facing left"` → refs `[anchor, checker_1024]` → `snap` → `anchor_west.png`. **One direction only (west), for every game type including top-down: the engine mirrors it for the other side. Do not generate south/north/east or a flipped copy unless the user explicitly asks for that direction.**
-5. Action sheet: `prompt sheet --set ACTION=attack --set N=8 --set DIRECTION_DESCRIPTION=... --set FRAME_BY_FRAME_DESCRIPTION=@motion.txt` → refs `[anchor_west, poseboard]` → `<action>_ai.png`.
+5. Idle: **do not generate.** `idle anchor_west_native.png sprites/<c>/idle [--frames 8] [--waist N]` builds a breathing loop from the anchor (top part sinks 1 dot in the second half), so the face and hair never drift; then `sheet sprites/<c>/idle/raw sprites/<c>/idle ...` as in step 6.
+   Every `sheet`/`walk`/`fix`/`inbetween` prompt needs `--set PARTS="..."`: the character's attached non-limb parts and where they hang (e.g. `blue cape hanging from the shoulders behind the back; short sword in the front hand`, or `none`). Write it once when the anchor is approved and reuse it.
+   Other action sheets: `prompt sheet --set ACTION=attack --set N=8 --set DIRECTION_DESCRIPTION=... --set FRAME_BY_FRAME_DESCRIPTION=@motion.txt` → refs `[anchor_west, poseboard]` → `<action>_ai.png`.
    Walk: `prompt walk --set N=8 --set DIRECTION_DESCRIPTION=...` → refs `[anchor_west, poseboard, walkguide_8]`.
-6. Post: `sheet <action>_ai.png sprites/<c>/<action> --match anchor_west_native.png [--anchor torso]` (torso for walk/jump). **`--match` is mandatory, also on rebuilds: it makes the character exactly as tall as in the anchor, so every action of a character has the same size in the game. Never pass the anchor's pixel_size to `sheet`:** the model draws each image at its own pixel density (a walk sheet came out ~15% smaller than its anchor), and the snapper's output size is a step function of pixel_size, so `--match` trial-snaps to find the grid itself and then enlarges the remainder.
-   Outputs raw/, frames/, sheet.png, preview.gif. Prints `frames: 1=01.png ...` — `--pick` uses those positions.
+6. Post: `sheet <action>_ai.png sprites/<c>/<action> --compare anchor_west_native.png [--anchor torso]` (torso for walk/jump). The whole board is snapped once at the 8 px grid (one dot size, one colour set for all frames), frames are cut from the native board and placed in 64x64-dot cells with the anchor at the bottom centre. **Nothing is resized:** `--compare` only warns when the sheet's character height differs from the anchor by more than 2 dots → regenerate or hand-fix.
+   Outputs raw/ (native crops), frames/ and sheet.png (1 dot = 1 px), preview.gif (x4, viewing only). Prints `frames: 1=01.png ...` — `--pick` uses those positions.
 7. Review (Read raw/ + sheet.png): pick frames, find wrong weapon hand / broken poses / height warnings. Then fix → step 8.
+7b. Colours (AGENTS.md palette rules; do this after the frames are final):
+   - Draft: add `--ramps <palette .md>` (current: `project/palettes/endesga-32.md`) to the `sheet` run → `OUT/colors.tsv` (source, pixels, material, target, note). Never overwritten once it exists.
+   - Check every row against the frames: fix wrong materials (rows marked `ambiguous` first; e.g. a dark pot interior is wood, not purple), keep targets in the same material ramp in brightness order. Show the table to the user in chat. **The user approves the table for every sheet.**
+   - Apply: `sheet OUT/raw OUT --table OUT/colors.tsv [--pick ...]` → recoloured frames/ + sheet.png, `palette.hex` (character palette), `review.aseprite` (layers before / after / mat_<material>, palette loaded) and an automatic `check` (off-palette, ≤16 colours, semi-transparency, union). Pass `--table` on every later rebuild.
+   - Corrections: colour-level → edit colors.tsv and re-apply; pixel-level → the user edits the `after` layer in Aseprite, saves, then `review-import OUT` (takes that layer as final frames/ + sheet.png and re-runs check).
+   - A REVIEW result is reported, never blocks; it is not final until the user approves.
 8. Fix or insert a frame:
-   - Wrong frame: `prompt fix --set FIX_DESCRIPTION="move the sword to the near-side hand, tip pointing forward"` → refs `[anchor_west, raw/05.png]` → `gen_fix.png` → `put gen_fix.png raw/05.png --match raw/05.png`.
-   - Missing in-between: `prompt inbetween --set MOTION_NOTE="..."` → refs `[anchor_west, raw/03.png, raw/04.png]` → `put gen_mid.png raw/03b.png --match raw/03.png --match raw/04.png`.
-   - Rebuild: `sheet sprites/<c>/<action>/raw sprites/<c>/<action> --match anchor_west_native.png ...` (re-extracting into a non-empty raw/ is refused on purpose).
+   - Wrong frame: `prompt fix --set FIX_DESCRIPTION="move the sword to the near-side hand, tip pointing forward"` → refs `[anchor_west, up(raw/05.png)]` (`up raw/05.png <scratch>/ref05.png`) → `gen_fix.png` → `put gen_fix.png raw/05.png --match raw/05.png` (snapped at 16 px, never resized; warns if the height differs).
+   - Missing in-between: `prompt inbetween --set MOTION_NOTE="..."` → refs `[anchor_west, up(raw/03.png), up(raw/04.png)]` → `put gen_mid.png raw/03b.png --match raw/03.png --match raw/04.png`.
+   - Rebuild: `sheet sprites/<c>/<action>/raw sprites/<c>/<action> --compare anchor_west_native.png ...` (re-extracting into a non-empty raw/ is refused on purpose).
 
 ## Walk cycle strategy (image model is weak at walk)
 A. One sheet with `walkguide_8` (stick figures; red = near limbs, blue = far limbs). Check leg order frame by frame.
@@ -48,8 +57,9 @@ C. Accept 4-frame walk, or hand-edit a few pixels (Aseprite).
 Frame counts: idle 10 · attack 8 · hurt 6 · jump 6 · death 10 · walk 8. Specific (per-frame lines) for idle/death; Loose (motion guidance) for attack. Switch style if one fails. Examples in USAGE.md.
 
 ## Limits
-- Size match: `sheet` prints `match: frames xN`. N outside 0.8–1.25 prints a WARNING (uneven pixels) → regenerate that sheet. Output cells use one integer scale derived from the anchor height (`--scale` overrides), so all sheets of a character share it.
+- Size: `sheet --compare` prints the frames' median height vs the anchor in dots; > 2 dots apart prints a WARNING → regenerate. Frames that do not fit the 64x64 cell print a WARNING and are cropped.
 - Characters <~24px apart on an AI sheet merge into one frame → regenerate.
 - `--anchor torso` keeps y on the lowest pixel: airborne jump frames may need a manual check in preview.gif.
-- `put` rescales by character height; poses that change height a lot (crouch, death lying) → match to the nearest similar pose.
+- `put` never rescales; it compares the height with `--match` frames. Poses that change height a lot (crouch, death lying) → compare with the nearest similar pose.
+- Palette check: `check OUT/frames OUT/sheet.png --palette <character or scene .hex> [--max-colors 16]` → per-file and union report of off-palette colours (hex, count, position), colour count and semi-transparent pixels. Soft gate: REVIEW is reported, never blocks; a REVIEW result is not final until the user reviews it.
 - Self-check: `$S/.venv/bin/python $S/test_sprite.py` (snapper faked).

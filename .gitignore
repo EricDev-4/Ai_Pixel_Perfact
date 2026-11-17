@@ -3,3 +3,4 @@ __pycache__/
 .DS_Store
 # generated sprites stay local
 project/sprites/*/
+.claude/settings.local.json

@@ -9,6 +9,16 @@ from the user text.
 
 Create one full-body character on a 1024x1024 square canvas.
 
+Image 1 role: dot-grid guide, a checkerboard of 16x16-pixel blocks (64x64 blocks). Use it only for
+the pixel block size; do not draw the checkerboard.
+
+Size and pixel grid (most important):
+- The whole canvas is a 64x64 grid of square blocks (16x16 px each at 1024x1024).
+- Every pixel-art pixel is one solid block of exactly that size. No smaller details.
+- The character is SMALL: at most {BODY_DOTS} blocks tall and {BODY_DOTS} blocks wide, i.e. no more than HALF of the
+  canvas height. Leave a wide empty magenta margin: at least 16 blocks above the head and on each side.
+- With so few pixels, simplify: head about a third of the body height, tiny face, chunky shapes.
+
 Style target:
 - polished 16-bit / early 32-bit JRPG character sprite style
 - lower-fidelity game character art, similar to a classic handheld or SNES-era RPG demake
@@ -28,13 +38,13 @@ Composition:
 - generous margin on all sides
 
 Background:
-- opaque exact flat chroma green background #00FF00
+- opaque exact flat chroma magenta background #FF00FF
 - no gradients, no texture, no shadows, no checkerboard, no faux transparency
-- no green spill on the character
+- no magenta spill on the character
 
 Avoid:
 - text, labels, frame numbers
 - props beyond the character concept
 - scenery, extra characters, cropped limbs
 - transparent background
-- green clothing or green accessories
+- magenta or hot-pink (#FF00FF-like) clothing or accessories

@@ -2,8 +2,8 @@ Intended use: a reusable single-frame directional anchor sprite for a top-down 2
 
 Image 1 role: identity anchor. Preserve the exact approved character identity,
 silhouette, outfit, proportions, and pixel-art readability from this reference image.
-Image 2 role: pixel-style anchor. Use this only to reinforce the crisp pixelated
-treatment, chunky pixel texture, and sprite readability.
+Image 2 role: dot-grid guide, a checkerboard of 16x16-pixel blocks. Use it only for the
+pixel block size; do not draw it.
 
 Primary request: generate a single-frame {DIRECTION_NAME} anchor sprite.
 
@@ -23,10 +23,15 @@ Look and rendering:
 - Preserve the visual family of image 1.
 - No painterly shading, no blur, no soft gradients.
 
+Pixel grid (strict):
+- The 1024x1024 canvas is a 64x64 grid of 16x16-pixel blocks.
+- Every pixel-art pixel is one solid 16x16 block aligned to this grid. No smaller details.
+- The character fits inside {BODY_DOTS}x{BODY_DOTS} blocks ({BODY_PX}x{BODY_PX} px), feet near the bottom centre.
+
 Background and composition:
 - 1024x1024 square canvas.
 - One isolated full-body sprite centered on the canvas.
-- Use an opaque exact flat chroma green background: #00FF00.
+- Use an opaque exact flat chroma magenta background: #FF00FF.
 - No gradients, texture, anti-aliased haze, lighting, checkerboards, faux transparency.
 - No cast shadow, ground shadow, contact shadow, glow, particles, or effects.
 - No scenery, UI, labels, text, props, borders, or extra characters.

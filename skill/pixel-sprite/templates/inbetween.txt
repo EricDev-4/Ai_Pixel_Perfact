@@ -10,13 +10,23 @@ Primary request: draw the single frame exactly halfway in motion between frame A
   positions in frame A and frame B.
 - Same facing direction, same scale, same foot ground line as frames A and B.
 - {MOTION_NOTE}
+- Part integrity: every part of image 1 keeps its own shape, colour and attachment point in every frame.
+  The character always has exactly the limbs of image 1 (e.g. two arms, two legs). Anything that is not
+  a limb (cape, cloth, scabbard, bag, hair, tail, weapon) never turns into a limb, never takes a limb's
+  shape, position or colour, and never passes between the legs.
+- Attached parts of this character: {PARTS}
 
 Look and rendering:
 - High-resolution pixelated sprite art matching frames A and B.
 - Crisp chunky sprite edges. No painterly shading, no blur, no soft gradients.
 
+Pixel grid (strict):
+- The 1024x1024 canvas is a 64x64 grid of 16x16-pixel blocks.
+- Every pixel-art pixel is one solid 16x16 block aligned to this grid. No smaller details.
+- The character fits inside {BODY_DOTS}x{BODY_DOTS} blocks ({BODY_PX}x{BODY_PX} px), feet near the bottom centre.
+
 Background and composition:
-- 1024x1024 square canvas, one isolated full-body sprite, centered, large.
-- Opaque exact flat chroma green background: #00FF00. No green spill on the character.
+- 1024x1024 square canvas, one isolated full-body sprite, centered.
+- Opaque exact flat chroma magenta background: #FF00FF. No magenta spill on the character.
 - No shadows, effects, text, labels, borders, or extra characters.
 - One frame only; do not draw frames A or B.
