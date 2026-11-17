@@ -1,0 +1,33 @@
+Intended use: a reusable single-frame directional anchor sprite for a top-down 2D action game.
+
+Image 1 role: identity anchor. Preserve the exact approved character identity,
+silhouette, outfit, proportions, and pixel-art readability from this reference image.
+Image 2 role: pixel-style anchor. Use this only to reinforce the crisp pixelated
+treatment, chunky pixel texture, and sprite readability.
+
+Primary request: generate a single-frame {DIRECTION_NAME} anchor sprite.
+
+Subject:
+- Same character as image 1.
+- Direction: {DIRECTION_DESCRIPTION}.
+- Keep this as the same character, not a redesign.
+- Preserve the character's main handheld weapon as one complete object.
+- The weapon must remain visibly gripped in the character's hand.
+- The weapon handle must be one continuous unbroken shaft.
+- For back-facing views, keep the weapon visibly attached or strapped.
+- For profile views, keep the weapon silhouette simple with one continuous handle line.
+
+Look and rendering:
+- High-resolution pixelated sprite art.
+- Chunky crisp sprite edges.
+- Preserve the visual family of image 1.
+- No painterly shading, no blur, no soft gradients.
+
+Background and composition:
+- 1024x1024 square canvas.
+- One isolated full-body sprite centered on the canvas.
+- Use an opaque exact flat chroma green background: #00FF00.
+- No gradients, texture, anti-aliased haze, lighting, checkerboards, faux transparency.
+- No cast shadow, ground shadow, contact shadow, glow, particles, or effects.
+- No scenery, UI, labels, text, props, borders, or extra characters.
+- Do not create an animation sheet; deliver one anchor pose only.

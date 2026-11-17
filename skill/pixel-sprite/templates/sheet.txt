@@ -1,0 +1,42 @@
+Intended use: a reusable {ACTION} animation spritesheet for a top-down 2D game.
+
+Image 1 role: identity anchor. Preserve the exact approved anchor sprite identity.
+Image 2 role: alternating-pixel pose-board guide at the exact target size. Use it
+to preserve the output aspect ratio, full-board composition, pixel texture, and
+implied {COLS} column x {ROWS} row pose-board layout. Do not copy it as visible
+grid lines.
+
+Subject:
+- Same already-approved sprite character.
+- Direction: {DIRECTION_DESCRIPTION}.
+- Keep this as the same character, not a redesign.
+- If the character holds a weapon: keep it in the same hand as in image 1 in every frame
+  (the hand nearest the viewer), and keep the weapon tip pointing in the facing direction.
+
+Primary request: create a {N}-frame {ACTION} sequence on a {CANVAS_W}x{CANVAS_H}
+pose board. Place the animation frames in the first {N} cells of an implied
+{COLS} column x {ROWS} row grid, reading left to right, top to bottom.
+
+{FRAME_BY_FRAME_DESCRIPTION}
+
+Look and rendering:
+- High-resolution pixelated sprite art.
+- Crisp chunky sprite edges.
+- Preserve visible pixel structure.
+- No painterly rendering, no airbrushing, no soft gradients.
+- Keep the sprite large and centered in each frame area.
+
+Composition and background constraints:
+- Use the full canvas as a model-friendly pose board, not a packed runtime spritesheet.
+- Each used cell contains one centered 256x256 runtime safe area.
+- Cells after frame {N} must remain entirely flat #00FF00.
+- Exactly one character figure per used frame cell.
+- Keep every full-body figure entirely inside its own implied frame area.
+- Keep scale consistent across all frames.
+- Keep the same foot baseline across all frames.
+- No overlapping between frame areas.
+- Use an opaque exact flat chroma green background: #00FF00.
+- No gradients, texture, anti-aliased haze, lighting, checkerboards, faux transparency.
+- No cast shadow, ground shadow, contact shadow, glow, particles, or effects.
+- No green spill on the character.
+- No scenery, props, text, UI, labels, frame numbers, grid lines, borders, or extra characters.

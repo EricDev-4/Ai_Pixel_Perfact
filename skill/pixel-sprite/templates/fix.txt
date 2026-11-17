@@ -1,0 +1,20 @@
+Intended use: repair one animation frame of a 2D game sprite.
+
+Image 1 role: identity anchor. This is the correct character, including which hand
+holds the weapon and how it is held.
+Image 2 role: the frame to repair. Keep its pose.
+
+Primary request: redraw image 2 with exactly the same pose, body position, limb angles,
+facing direction, and scale, changing only this:
+- {FIX_DESCRIPTION}
+
+Everything else stays identical to image 2. Match the identity and pixel-art style of image 1.
+
+Look and rendering:
+- High-resolution pixelated sprite art. Crisp chunky sprite edges.
+- No painterly shading, no blur, no soft gradients.
+
+Background and composition:
+- 1024x1024 square canvas, one isolated full-body sprite, centered, large.
+- Opaque exact flat chroma green background: #00FF00. No green spill on the character.
+- No shadows, effects, text, labels, borders, or extra characters.

@@ -1,0 +1,22 @@
+Intended use: one in-between animation frame for a 2D game sprite.
+
+Image 1 role: identity anchor. Preserve the exact approved sprite identity, outfit,
+proportions, colors, and pixel-art style.
+Image 2 role: frame A (the frame before).
+Image 3 role: frame B (the frame after).
+
+Primary request: draw the single frame exactly halfway in motion between frame A and frame B.
+- Every limb, the torso, head, hair, cloth, and any weapon sit halfway between their
+  positions in frame A and frame B.
+- Same facing direction, same scale, same foot ground line as frames A and B.
+- {MOTION_NOTE}
+
+Look and rendering:
+- High-resolution pixelated sprite art matching frames A and B.
+- Crisp chunky sprite edges. No painterly shading, no blur, no soft gradients.
+
+Background and composition:
+- 1024x1024 square canvas, one isolated full-body sprite, centered, large.
+- Opaque exact flat chroma green background: #00FF00. No green spill on the character.
+- No shadows, effects, text, labels, borders, or extra characters.
+- One frame only; do not draw frames A or B.

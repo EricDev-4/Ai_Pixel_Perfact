@@ -1,0 +1,48 @@
+Intended use: a reusable walk cycle animation spritesheet for a side-view 2D game.
+
+Image 1 role: identity anchor. Preserve the exact approved anchor sprite identity.
+Image 2 role: alternating-pixel pose-board guide at the exact target size. Use it
+to preserve the output aspect ratio, full-board composition, pixel texture, and
+implied {COLS} column x {ROWS} row pose-board layout. Do not copy it as visible
+grid lines.
+Image 3 role: pose guide. Each cell shows a stick figure for that frame. RED limbs
+are the near-side arm and leg (closest to the viewer); BLUE limbs are the far-side
+arm and leg. Use it only for body pose; do not draw stick figures, red/blue lines, or
+the white background.
+
+Subject:
+- Same already-approved sprite character.
+- Direction: {DIRECTION_DESCRIPTION}.
+- Keep this as the same character, not a redesign.
+- If the character holds a weapon: keep it in the same hand as in image 1 in every frame,
+  held still and close to the body while walking.
+
+Primary request: create a {N}-frame walk cycle on a {CANVAS_W}x{CANVAS_H} pose board.
+Place the frames in the first {N} cells of an implied {COLS} column x {ROWS} row grid,
+reading left to right, top to bottom. Frame k must copy the pose of the stick figure in
+cell k of image 3 exactly:
+- Match which leg is in front and which is behind, using the red/blue limb colors.
+- Match knee bend, foot lift, and arm swing; arms swing opposite to the same-side leg.
+- Walk in place: no forward travel; the planted foot stays on the same ground line.
+- The last frame must flow back into the first frame for a seamless loop.
+
+Look and rendering:
+- High-resolution pixelated sprite art.
+- Crisp chunky sprite edges.
+- Preserve visible pixel structure.
+- No painterly rendering, no airbrushing, no soft gradients.
+- Keep the sprite large and centered in each frame area.
+
+Composition and background constraints:
+- Use the full canvas as a model-friendly pose board, not a packed runtime spritesheet.
+- Cells after frame {N} must remain entirely flat #00FF00.
+- Exactly one character figure per used frame cell.
+- Keep every full-body figure entirely inside its own implied frame area.
+- Keep scale consistent across all frames.
+- Keep the same foot baseline across all frames.
+- No overlapping between frame areas.
+- Use an opaque exact flat chroma green background: #00FF00.
+- No gradients, texture, anti-aliased haze, lighting, checkerboards, faux transparency.
+- No cast shadow, ground shadow, contact shadow, glow, particles, or effects.
+- No green spill on the character.
+- No scenery, props, text, UI, labels, frame numbers, grid lines, borders, stick figures, or extra characters.

@@ -1,0 +1,7 @@
+{
+  "enabledPlugins": {
+    "swift-lsp@claude-plugins-official": false,
+    "last30days@last30days-skill": false,
+    "watch@claude-video": false
+  }
+}

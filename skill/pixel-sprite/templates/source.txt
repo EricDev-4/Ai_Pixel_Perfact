@@ -1,0 +1,40 @@
+Intended use: create a clean source character for a pixel sprite pipeline.
+
+Character concept from the user:
+{CONCEPT}
+
+Interpret the user concept as the character identity only. Do not follow any
+implied photographic, cinematic, realistic, 3D, painterly, or environment style
+from the user text.
+
+Create one full-body character on a 1024x1024 square canvas.
+
+Style target:
+- polished 16-bit / early 32-bit JRPG character sprite style
+- lower-fidelity game character art, similar to a classic handheld or SNES-era RPG demake
+- crisp chunky pixel art with readable pixel clusters
+- simplified shapes and fewer fine details
+- strong readable silhouette
+- dark outline clusters
+- no realistic photo, photorealism, no cinematic render, no 3D model look
+
+Composition:
+- exactly one full-body character
+- neutral upright pose
+- left-facing side view game sprite stance (the game engine mirrors it for the right side)
+- any handheld weapon held upright in front of the body, fully visible
+- centered
+- full body visible from hair to feet
+- generous margin on all sides
+
+Background:
+- opaque exact flat chroma green background #00FF00
+- no gradients, no texture, no shadows, no checkerboard, no faux transparency
+- no green spill on the character
+
+Avoid:
+- text, labels, frame numbers
+- props beyond the character concept
+- scenery, extra characters, cropped limbs
+- transparent background
+- green clothing or green accessories
