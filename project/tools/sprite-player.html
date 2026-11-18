@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sprite Player</title>
+<style>
+  :root { --bg:#1c1c21; --panel:#2a2a32; --fg:#ececf1; --muted:#9a9aa6; --accent:#ffd43b; --line:#4a4a55; }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; background:var(--bg); color:var(--fg);
+         font:14px/1.4 -apple-system, system-ui, sans-serif; display:flex; flex-direction:column; align-items:center; }
+  h1 { font-size:16px; font-weight:600; margin:16px 16px 8px; }
+  .bar { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; justify-content:center;
+         background:var(--panel); padding:10px 16px; border-radius:10px; margin:0 16px; max-width:calc(100vw - 32px); }
+  label { display:flex; gap:6px; align-items:center; color:var(--muted); }
+  input[type=number] { width:64px; }
+  input, select, button { font:inherit; }
+  button { background:var(--line); color:var(--fg); border:0; border-radius:6px; padding:5px 12px; cursor:pointer; }
+  button:hover { background:#5a5a66; }
+  #drop { margin:16px; padding:16px; border:2px dashed var(--line); border-radius:12px; width:min(calc(100vw - 32px), 900px);
+          min-height:320px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; overflow:auto; }
+  #drop.over { border-color:var(--accent); }
+  #hint { color:var(--muted); text-align:center; }
+  canvas { image-rendering:pixelated; image-rendering:crisp-edges; max-width:100%; }
+  .bg-checker { background:conic-gradient(#6b6b6b 25%, #8a8a8a 0 50%, #6b6b6b 0 75%, #8a8a8a 0) 0 0 / 16px 16px; }
+  .bg-dark { background:#111; } .bg-light { background:#f2f2f2; } .bg-grass { background:#8fb04a; } .bg-magenta { background:#ff00ff; }
+  #info { color:var(--muted); font-variant-numeric:tabular-nums; }
+  #strip { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; }
+  #strip canvas { border:1px solid var(--line); cursor:pointer; }
+  #strip canvas.cur { border-color:var(--accent); }
+</style>
+</head>
+<body>
+<h1>Sprite Player</h1>
+<div class="bar">
+  <button id="open">PNG 열기</button>
+  <input id="file" type="file" accept="image/png,image/gif,image/webp" multiple hidden>
+  <label>FPS <input id="fps" type="number" min="1" max="60" value="10"></label>
+  <label>배율 <input id="scale" type="number" min="1" max="16" value="4"></label>
+  <label>프레임 W <input id="fw" type="number" min="1" placeholder="auto"></label>
+  <label>H <input id="fh" type="number" min="1" placeholder="auto"></label>
+  <label>배경 <select id="bg">
+    <option value="checker">체커</option><option value="dark">어두움</option><option value="light">밝음</option>
+    <option value="grass">잔디</option><option value="magenta">마젠타</option></select></label>
+  <label><input id="key" type="checkbox" checked> 마젠타 투명</label>
+  <button id="play">일시정지</button>
+</div>
+<div id="drop">
+  <div id="hint">PNG를 여기로 끌어다 놓으세요.<br>시트 한 장(가로 줄 또는 격자) 또는 프레임 여러 장(파일 이름 순).<br>
+    Space: 재생/정지 · ←/→: 한 프레임씩</div>
+  <canvas id="view" class="bg-checker" hidden></canvas>
+  <div id="info"></div>
+  <div id="strip"></div>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const view = $('view'), ctx = view.getContext('2d');
+let frames = [], cur = 0, playing = true, last = 0, sources = [], names = '';
+
+function loadImage(src) {
+  return new Promise((ok, bad) => {
+    const img = new Image();
+    img.onload = () => ok(img); img.onerror = bad;
+    img.src = src;
+  });
+}
+
+// One canvas per frame; magenta (#ff00ff ± tolerance) optionally keyed to transparent.
+function cut(img, x, y, w, h) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.drawImage(img, x, y, w, h, 0, 0, w, h);
+  const d = g.getImageData(0, 0, w, h), p = d.data;
+  let opaque = 0;
+  for (let i = 0; i < p.length; i += 4) {
+    if ($('key').checked && p[i] > 230 && p[i + 1] < 40 && p[i + 2] > 230) p[i + 3] = 0;
+    if (p[i + 3]) opaque++;
+  }
+  g.putImageData(d, 0, 0);
+  return opaque ? c : null; // null = empty cell
+}
+
+function build() {
+  frames = [];
+  if (sources.length === 1) {
+    const img = sources[0];
+    // default: square frames of the sheet height if they tile the width (horizontal strip), else the whole image
+    const fh = +$('fh').value || img.height;
+    const fw = +$('fw').value || (img.width % fh === 0 ? fh : img.width);
+    for (let y = 0; y + fh <= img.height; y += fh)
+      for (let x = 0; x + fw <= img.width; x += fw) {
+        const c = cut(img, x, y, fw, fh); if (c) frames.push(c);
+      }
+  } else {
+    for (const img of sources) frames.push(cut(img, 0, 0, img.width, img.height));
+  }
+  frames = frames.filter(Boolean);
+  cur = 0;
+  $('hint').hidden = frames.length > 0; view.hidden = !frames.length;
+  const strip = $('strip'); strip.innerHTML = '';
+  frames.forEach((f, i) => {
+    const t = document.createElement('canvas'); t.width = f.width; t.height = f.height;
+    t.getContext('2d').drawImage(f, 0, 0); t.style.width = f.width * 1.5 + 'px';
+    t.className = $('bg').value === 'checker' ? 'bg-checker' : 'bg-' + $('bg').value;
+    t.title = `frame ${i + 1}`; t.onclick = () => { cur = i; playing = false; syncPlay(); draw(); };
+    strip.appendChild(t);
+  });
+  draw();
+}
+
+function draw() {
+  if (!frames.length) return;
+  const f = frames[cur], s = Math.max(1, +$('scale').value || 1);
+  const w = Math.max(...frames.map(x => x.width)), h = Math.max(...frames.map(x => x.height));
+  if (view.width !== w * s || view.height !== h * s) { view.width = w * s; view.height = h * s; }
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, view.width, view.height);
+  ctx.drawImage(f, 0, 0, f.width, f.height, 0, (h - f.height) * s, f.width * s, f.height * s);
+  $('info').textContent = `${names} · ${cur + 1} / ${frames.length} 프레임 · ${f.width}×${f.height}px`;
+  [...$('strip').children].forEach((t, i) => t.classList.toggle('cur', i === cur));
+}
+
+function tick(t) {
+  const fps = Math.min(60, Math.max(1, +$('fps').value || 10));
+  if (playing && frames.length > 1 && t - last >= 1000 / fps) { cur = (cur + 1) % frames.length; last = t; draw(); }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// items: [{name, src}] — src is a blob: URL (drop / file picker) or a data: URL (macOS app: Dock, Open With)
+async function loadSources(items) {
+  items.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  if (!items.length) return;
+  sources = await Promise.all(items.map(i => loadImage(i.src)));
+  names = items.length === 1 ? items[0].name : `${items.length}개 파일`;
+  $('fw').value = ''; $('fh').value = '';
+  build();
+}
+window.loadDataURLs = loadSources;
+function load(fileList) {
+  return loadSources([...fileList].filter(f => f.type.startsWith('image/'))
+    .map(f => ({ name: f.name, src: URL.createObjectURL(f) })));
+}
+
+function syncPlay() { $('play').textContent = playing ? '일시정지' : '재생'; }
+const drop = $('drop');
+drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('over'); });
+drop.addEventListener('dragleave', () => drop.classList.remove('over'));
+drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); load(e.dataTransfer.files); });
+$('open').onclick = () => $('file').click();
+$('file').onchange = e => load(e.target.files);
+$('play').onclick = () => { playing = !playing; syncPlay(); };
+['fw', 'fh', 'key'].forEach(id => $(id).addEventListener('change', () => sources.length && build()));
+$('scale').addEventListener('input', draw);
+$('bg').addEventListener('change', () => { view.className = 'bg-' + $('bg').value; sources.length && build(); });
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || !frames.length) return;
+  if (e.code === 'Space') { e.preventDefault(); playing = !playing; syncPlay(); }
+  if (e.code === 'ArrowRight') { playing = false; syncPlay(); cur = (cur + 1) % frames.length; draw(); }
+  if (e.code === 'ArrowLeft') { playing = false; syncPlay(); cur = (cur - 1 + frames.length) % frames.length; draw(); }
+});
+</script>
+</body>
+</html>

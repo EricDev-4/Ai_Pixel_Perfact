@@ -159,4 +159,24 @@ with tempfile.TemporaryDirectory() as t:
     assert sprite.main(["check", str(Path(t) / "good.png"), str(Path(t) / "two.png"),
                         "--palette", str(hexf), "--max-colors", "2"]) is False
 
+    # Pixel Engine request (no network): anchor on a magenta canvas, palette locked, frame rules
+    import base64, io
+    an = Image.new("RGB", (10, 20), sprite.KEY)
+    ImageDraw.Draw(an).rectangle([2, 2, 7, 19], fill=(200, 180, 20))
+    an.save(ap := Path(t) / "anchor_native.png")
+    body = sprite.pe_request(ap, "walk", 8, "pixel-engine-v1.5", 64)
+    img = Image.open(io.BytesIO(base64.b64decode(body["image"])))
+    assert img.size == (64, 64) and img.getpixel((0, 0)) == sprite.KEY
+    assert set(body["pixel_config"]["palette"]) == {"#ff00ff", "#c8b414"} and body["render_mode"] == "pixel"
+    assert body["training_opt_out"] is True and body["output_format"] == "spritesheet"
+    for bad_args in [(ap, "x", 7, "pixel-engine-v1.1", 64), (ap, "x", 8, "pixel-engine-v1.1", 300)]:
+        try:
+            sprite.pe_request(*bad_args); raise AssertionError("should exit")
+        except SystemExit:
+            pass
+    strip = Image.new("RGBA", (30, 12), (0, 0, 0, 0)); strip.putpixel((25, 5), (255, 255, 255, 255))
+    fr = sprite.split_strip(strip, 3)
+    assert len(fr) == 3 and fr[0].size == (10, 12) and fr[0].getpixel((0, 0)) == sprite.KEY
+    assert fr[2].getpixel((5, 5)) == (255, 255, 255)
+
 print("ok")

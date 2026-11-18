@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """AI pixel-art sprite pipeline: refs, prompt, gen (Codex), snap, sheet post-process."""
-import argparse, os, re, shutil, subprocess, sys, tempfile
+import argparse, base64, io, json, os, re, shutil, subprocess, sys, tempfile, time, urllib.error, urllib.request
 from collections import deque
 from pathlib import Path
 
@@ -238,6 +238,90 @@ def cmd_idle(a):
         bg.paste(fr, (0, 0), fr)
         bg.save(raw / f"{i + 1:02}.png")
     print(f"idle: {a.frames} frames, rows 0-{waist - 1} of {h} sink 1 dot in frames {a.frames // 2 + 1}-{a.frames} -> {raw}")
+
+
+PE_API = "https://api.pixelengine.ai/functions/v1"
+PE_MAX = {"pixel-engine-v1.1": 256, "pixel-engine-v1.5": 320}  # pixel-mode input px per side
+
+
+def pe_call(path, body=None):
+    kf = Path.home() / ".config/pixelengine/api_key"
+    key = (os.environ.get("PIXELENGINE_API_KEY") or (kf.read_text().strip() if kf.exists() else "")
+           or sys.exit(f"set PIXELENGINE_API_KEY or put the key in {kf} (pixelengine.ai -> Account -> API)"))
+    req = urllib.request.Request(PE_API + path, data=json.dumps(body).encode() if body else None,
+                                 headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return json.load(r)
+    except urllib.error.HTTPError as e:
+        sys.exit(f"Pixel Engine {path}: HTTP {e.code} {e.read().decode(errors='replace')[:500]}")
+
+
+def pe_request(anchor, prompt, frames, model, canvas, seed=None):
+    """/animate body: the anchor native (1 dot = 1 px) at the bottom centre of a magenta canvas with room
+    for the motion; the pixel pipeline returns frames at the input size, so the dot size is kept.
+    Palette locked to the anchor's own colours so the character's colours cannot drift."""
+    if model == "pixel-engine-v1.1" and frames % 2:
+        sys.exit("pixel-engine-v1.1 needs an even frame count (2-16)")
+    src = clean(Image.open(anchor))
+    src = src.crop(src.getbbox())
+    side = max(canvas, src.width + 4, src.height + 4)
+    if side > PE_MAX[model]:
+        sys.exit(f"canvas {side}px exceeds {PE_MAX[model]}px for {model}")
+    bg = Image.new("RGB", (side, side), KEY)
+    bg.paste(src, ((side - src.width) // 2, side - src.height - 2), src)
+    cols = sorted("#%02x%02x%02x" % c for _, c in bg.getcolors(64) or sys.exit("anchor has > 64 colours"))
+    buf = io.BytesIO()
+    bg.save(buf, "PNG")
+    body = {"image": base64.b64encode(buf.getvalue()).decode(), "prompt": prompt, "model": model,
+            "output_frames": frames, "output_format": "spritesheet", "matte_color": "FF00FF",
+            "pixel_config": {"palette": cols}, "training_opt_out": True}
+    if model == "pixel-engine-v1.5":
+        body["render_mode"] = "pixel"
+    if seed:
+        body["seed"] = seed
+    return body
+
+
+def split_strip(strip, n):
+    """Pixel Engine spritesheet = one horizontal strip of n equal frames -> RGB frames on magenta."""
+    strip = strip.convert("RGBA")
+    fw = strip.width // n
+    out = []
+    for i in range(n):
+        fr = strip.crop((i * fw, 0, (i + 1) * fw, strip.height))
+        bg = Image.new("RGB", fr.size, KEY)
+        bg.paste(fr, (0, 0), fr)
+        out.append(bg)
+    return out
+
+
+def cmd_animate(a):
+    """Animate the anchor with Pixel Engine -> OUT/pe_strip.png (AI original) + OUT/raw/NN.png;
+    then build with `sheet OUT/raw OUT --compare <anchor>`. Failed jobs are not charged."""
+    out = Path(a.out)
+    raw = out / "raw"
+    if raw.exists() and any(raw.iterdir()):
+        sys.exit(f"{raw} already has frames; choose a new OUT folder or remove it")
+    prompt = Path(a.prompt[1:]).read_text().strip() if a.prompt.startswith("@") else a.prompt
+    job = pe_call("/animate", pe_request(a.anchor, prompt, a.frames, a.model, a.canvas, a.seed))["api_job_id"]
+    print(f"submitted job {job} ({a.model}, {a.frames} frames); waiting (~90 s)", flush=True)
+    deadline = time.time() + a.timeout
+    while (j := pe_call(f"/jobs?id={job}"))["status"] not in ("success", "failure", "cancelled"):
+        if time.time() > deadline:
+            sys.exit(f"timeout; the job keeps running: GET /jobs?id={job}")
+        time.sleep(4)
+    if j["status"] != "success":
+        sys.exit(f"job {job} {j['status']}: {j.get('error')} (not charged)")
+    raw.mkdir(parents=True, exist_ok=True)
+    urllib.request.urlretrieve(j["output"]["url"], strip := out / "pe_strip.png")
+    meta = j["output"].get("metadata") or {}
+    frames = split_strip(Image.open(strip), meta.get("frame_count") or a.frames)
+    for i, fr in enumerate(frames, 1):
+        fr.save(raw / f"{i:02}.png")
+    print(f"{len(frames)} frames {frames[0].width}x{frames[0].height}, charged "
+          f"{(j.get('billing') or {}).get('credits_charged')} credits -> {raw}\n"
+          f"next: sprite.py sheet {raw} {out} --compare {a.anchor}")
 
 
 def extract_frames(sheet, min_frac=0.08, f=1, glue=1):
@@ -669,6 +753,13 @@ def main(argv=None):
     r.add_argument("anchor"); r.add_argument("out")
     r.add_argument("--frames", type=int, default=8)
     r.add_argument("--waist", type=int, help="rows from the top of the character that move (default 70%% of its height)")
+    r = s.add_parser("animate", help="animate the anchor native with Pixel Engine (needs PIXELENGINE_API_KEY): writes OUT/raw")
+    r.add_argument("anchor"); r.add_argument("out")
+    r.add_argument("--prompt", required=True, help="motion text or @file")
+    r.add_argument("--frames", type=int, default=8)
+    r.add_argument("--model", choices=sorted(PE_MAX), default="pixel-engine-v1.5", help="v1.5 = 26 credits, v1.1 = 20 (even frames)")
+    r.add_argument("--canvas", type=int, default=128, help="square canvas px around the anchor (room for the motion)")
+    r.add_argument("--seed", type=int); r.add_argument("--timeout", type=int, default=600)
     r = s.add_parser("up", help="integer NN enlargement of a native frame (generation reference)")
     r.add_argument("input"); r.add_argument("output"); r.add_argument("--size", type=int, default=1024)
     r = s.add_parser("sheet", help="AI sheet (or raw/ folder) -> snapped, aligned, cleaned, packed sprite sheet")
@@ -696,7 +787,7 @@ def main(argv=None):
     a = p.parse_args(argv)
     return {"refs": cmd_refs, "prompt": cmd_prompt, "gen": cmd_gen, "snap": cmd_snap, "sheet": cmd_sheet,
             "put": cmd_put, "check": cmd_check, "up": cmd_up,
-            "review-import": cmd_review_import, "idle": cmd_idle}[a.cmd](a)
+            "review-import": cmd_review_import, "idle": cmd_idle, "animate": cmd_animate}[a.cmd](a)
 
 
 if __name__ == "__main__":
