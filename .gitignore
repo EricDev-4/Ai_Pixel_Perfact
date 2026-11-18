@@ -4,3 +4,4 @@ __pycache__/
 # generated sprites stay local
 project/sprites/*/
 .claude/settings.local.json
+project/tools/build/

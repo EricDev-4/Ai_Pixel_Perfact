@@ -48,6 +48,12 @@ Always Read the result before continuing. Reject and regenerate on identity drif
    - Missing in-between: `prompt inbetween --set MOTION_NOTE="..."` → refs `[anchor_west, up(raw/03.png), up(raw/04.png)]` → `put gen_mid.png raw/03b.png --match raw/03.png --match raw/04.png`.
    - Rebuild: `sheet sprites/<c>/<action>/raw sprites/<c>/<action> --compare anchor_west_native.png ...` (re-extracting into a non-empty raw/ is refused on purpose).
 
+## Pixel Engine animation (alternative to steps 5-6 for action sheets)
+Animates the approved anchor native itself, so identity, dot size and colours stay fixed (pixel mode returns frames at the input size; palette locked to the anchor's colours; training opt-out sent).
+- Needs `PIXELENGINE_API_KEY` (pixelengine.ai → Account → API). Costs credits: v1.5 = 26 (3-16 frames, default), v1.1 = 20 (even frames). Failed jobs are not charged.
+- `animate anchor_<dir>_native.png sprites/<c>/<action>_<dir> --prompt "walking cycle, ..." --frames 8 [--canvas 128] [--model pixel-engine-v1.1] [--seed N]` → `OUT/pe_strip.png` (AI original → move to `originals/`) + `OUT/raw/NN.png`.
+- Then `sheet OUT/raw OUT --compare anchor_<dir>_native.png [--anchor torso]` and review / colours / fix exactly as steps 6-8. One call per direction; mirror east from west in the engine.
+
 ## Walk cycle strategy (image model is weak at walk)
 A. One sheet with `walkguide_8` (stick figures; red = near limbs, blue = far limbs). Check leg order frame by frame.
 B. If the order is wrong: 4 key poses with `walkguide_4` (N=4), fix bad keys, then generate in-betweens (`inbetween`) between each pair, incl. 4→1 for the loop → `put` as 01b, 02b, 03b, 04b → rebuild with `--anchor torso`.

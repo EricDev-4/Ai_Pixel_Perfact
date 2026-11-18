@@ -19,7 +19,7 @@ GPT Image(Codex)로 생성한 픽셀아트를 **게임에 바로 쓰는 픽셀 �
 ```
 skill/pixel-sprite/        Claude Code 스킬 → ~/.claude/skills/pixel-sprite/ 로 복사
   SKILL.md                 작업 절차 (Claude가 읽음)
-  sprite.py                후처리 스크립트 (refs, prompt, gen, snap, sheet, put)
+  sprite.py                후처리 스크립트 (refs, prompt, gen, snap, sheet, put, animate)
   templates/               이미지 생성 프롬프트 템플릿
   test_sprite.py           자체 점검
   USAGE.md, ORCHESTRA.md   사용법, 설계 문서
@@ -28,6 +28,10 @@ project/                   게임 프로젝트 폴더에 복사할 설정
   .claude/agents/sprite-qa.md   검수 서브에이전트
   .claude/settings.json    이 프로젝트에서 끌 플러그인 (없으면 무시됨)
   sprites/AGENTS.md        Codex 규칙
+  .mcp.json                Pixel Engine MCP 서버 (OAuth 로그인, 키 없음)
+  tools/sprite-player.html PNG 시트/프레임 루프 재생기 (브라우저)
+  tools/player-app/        같은 재생기의 macOS 앱 (build.sh로 빌드)
+docs/side-view-plan.md     옆모습 1방향 기준 캐릭터별 애니메이션 구성과 플랜별 생성량
 requirements.txt           Python 패키지
 ```
 
@@ -41,6 +45,7 @@ requirements.txt           Python 패키지
 | Python 3.9 이상 | `sprite.py` 실행 | macOS 기본 또는 `brew install python` | 3.9.6 |
 | Pillow, numpy | 이미지 처리 | 아래 3단계 | `requirements.txt` |
 | [herdr](https://herdr.dev) (선택) | 각 모델의 작업 창을 띄워 진행 과정 보기 | herdr.dev 안내 참고 | 0.9.5 |
+| [Pixel Engine](https://pixelengine.ai) (선택) | 앵커를 그대로 움직이는 애니메이션 생성 | 가입 후 Account → API에서 키 발급 | API v1, 2026-11 |
 
 macOS(Homebrew)에서만 확인했습니다. Windows와 Linux는 시험하지 않았습니다.
 
@@ -71,6 +76,15 @@ cp -R project/. /path/to/your-game-project/
 
 # 7. 자체 점검: 마지막 줄이 ok 이면 정상
 ~/.claude/skills/pixel-sprite/.venv/bin/python ~/.claude/skills/pixel-sprite/test_sprite.py
+
+# 8. (선택) Pixel Engine API 키: 파일에 키 한 줄만 저장 (본인만 읽기)
+mkdir -p ~/.config/pixelengine && chmod 700 ~/.config/pixelengine
+touch ~/.config/pixelengine/api_key && chmod 600 ~/.config/pixelengine/api_key
+open -e ~/.config/pixelengine/api_key          # pe_sk_... 붙여 넣고 저장
+# MCP는 project/.mcp.json에 들어 있음: Claude Code에서 /mcp → pixelengine → Authenticate
+
+# 9. (선택) 재생기 macOS 앱 빌드 (Xcode Command Line Tools 필요)
+sh /path/to/your-game-project/tools/player-app/build.sh   # → tools/build/Sprite Player.app
 ```
 
 ## 사용법
@@ -95,6 +109,23 @@ cp -R project/. /path/to/your-game-project/
 
 게임 엔진에서는 텍스처 필터를 **Nearest(Point)** 로 설정해야 확대해도 선명합니다.
 
+### Pixel Engine으로 동작 만들기 (권장)
+
+GPT로 동작 시트를 새로 그리는 대신, 승인된 앵커 자체를 움직입니다. 얼굴·비율·색이 프레임마다 바뀌지 않습니다.
+
+```bash
+S=~/.claude/skills/pixel-sprite
+$S/.venv/bin/python $S/sprite.py animate sprites/banana/anchor_west_native.png sprites/banana/walk_west \
+  --frames 8 --prompt "looping walk cycle facing left, ..."
+$S/.venv/bin/python $S/sprite.py sheet sprites/banana/walk_west/raw sprites/banana/walk_west \
+  --compare sprites/banana/anchor_west_native.png
+```
+
+- pixel 모드는 출력 프레임이 입력과 같은 크기라 도트 크기가 유지됩니다. 팔레트는 앵커 색으로 고정하고, 학습 사용 거부(`training_opt_out`)를 보냅니다.
+- 1회 26크레딧(v1.5) 또는 20크레딧(`--model pixel-engine-v1.1`, 짝수 프레임). 실패한 작업은 차감되지 않습니다.
+- 팔을 머리 위로 드는 동작처럼 키가 커지면 `sheet ... --cell 96`으로 칸을 키웁니다.
+- 결과 확인: `open -a "tools/build/Sprite Player.app" sprites/banana/walk_west/sheet.png`
+
 ## 주요 규칙
 
 - **방향은 왼쪽(west) 한 방향만** 만듭니다. 오른쪽은 게임 엔진에서 좌우 반전합니다.
@@ -106,6 +137,7 @@ cp -R project/. /path/to/your-game-project/
 
 - **Codex 이미지 크기:** 요청한 크기를 따르지 않습니다(1024 요청 → 1254, 2048x1536 요청 → 1448x1086). 후처리에는 문제가 없습니다.
 - **격자 불일치:** 모델이 생성 격자를 지키지 않으면 `grid ... not honoured` 경고가 나옵니다. 그 그림은 도트 크기가 다를 수 있으니 재생성하는 것이 좋습니다.
-- **걷기 동작:** 이미지 모델이 걷기를 어려워합니다. `USAGE.md`의 걷기 전략(4프레임 키포즈 + 중간 프레임)을 참고하세요.
+- **Pixel Engine 공격 동작:** 들어 올리기는 잘 나오지만 빠른 내려치기 사이 중간 프레임이 빠지거나 마지막에 원래 자세로 덜 돌아올 수 있습니다. 중간 프레임은 `inbetween`, 복귀는 첫 프레임 복사로 보완합니다.
+- **걷기 동작 (GPT 시트):** 이미지 모델이 걷기를 어려워합니다. `USAGE.md`의 걷기 전략(4프레임 키포즈 + 중간 프레임)을 참고하세요.
 - **맵 타일셋:** 아직 지원하지 않습니다. 이음새 처리와 격자 자르기가 필요해서 별도 워크플로우가 필요합니다.
 - **아이템:** 직접 생성한 GPT 이미지를 `sprite.py snap` / `sheet`로 후처리할 수 있지만, 배경이 단색 마젠타(#FF00FF)가 아니면 배경 제거가 되지 않습니다.
