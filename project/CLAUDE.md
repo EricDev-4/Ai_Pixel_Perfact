@@ -25,7 +25,17 @@ sprite-qa에게는 한 번에 넘긴다: 파일 경로, 동작 이름, 기대 �
 - 마젠타(#FF00FF 같은 진분홍) 요소는 다른 색으로 바꾸고, 바꾼 사실을 사용자에게 알린다 (크로마키 때문).
 - 탈것처럼 여럿이 합쳐진 캐릭터는 하나의 실루엣으로 묘사한다
   (예: "a caveman riding a horse, drawn as one combined sprite").
-- 탑다운이어도 방향은 west 한 방향만 만든다. 반대쪽은 게임 엔진에서 반전한다. south, north, east나 반전본은 사용자가 명시적으로 요청할 때만 만든다.
+- **기준 방향은 캐릭터마다 사용자에게 묻는다** (예: west 옆모습, south 정면). 정한 한 방향만 만들고, 좌우 반대쪽은
+  게임 엔진에서 반전한다. 다른 방향이나 반전본은 사용자가 명시적으로 요청할 때만 만든다.
+
+## 캐릭터 일관성
+- 새 캐릭터는 승인된 캐릭터(현재 기준: 바나나)의 AI 원본을 **스타일 레퍼런스**로 붙인다. 같은 방향의 원본을 쓴다
+  (west: `sprites/banana/originals/source.png`, south: `sprites/banana/originals/gen_south.png`).
+  역할은 "같은 게임의 캐릭터. 화풍·외곽선·명암·얼굴·장갑·신발·카메라만 맞추고 그 캐릭터는 베끼지 말 것"으로 쓴다.
+- 도트 크기는 바나나와 같은 격자로 **강제 스냅**한다: `spritefusion-pixel-snapper <원본> <native> 32 --pixel-size <값>`,
+  값 = 13.5 × (원본 가로 px ÷ 1254). `sprite.py snap`은 격자가 5% 넘게 어긋나면 자동 감지로 바뀌어 크기가 달라진다.
+  키가 바나나(약 57도트)와 2도트 넘게 다르면 보고한다.
+- 캐릭터 스타일 가이드는 사용자와 토론해 정할 예정이다(미정). 그 전까지는 바나나를 기준으로 한다.
 
 ## 승인 없이 해도 되는 것
 - 같은 프롬프트나 조금 고친 프롬프트로 이미지 재생성. 이미지당 1회까지.
@@ -34,13 +44,24 @@ sprite-qa에게는 한 번에 넘긴다: 파일 경로, 동작 이름, 기대 �
 - sprite.py의 모든 명령 실행.
 
 ## 생성 예산
-이미지 생성이 가장 비싸다. 캐릭터당 1장(소스를 처음부터 west 옆모습으로 생성해 앵커로 쓴다),
-요청받은 동작당 1장이 기준이다. idle은 생성하지 않고 `sprite.py idle`로 앵커에서 만든다(AGENTS.md 애니메이션 품질 규칙). 요청에 없는 방향·동작·시안은 만들지 않는다.
+이미지 생성이 가장 비싸다. 캐릭터당 1장(소스를 처음부터 정한 기준 방향으로 생성해 앵커로 쓴다),
+요청받은 동작당 1회가 기준이다. idle은 생성하지 않고 `sprite.py idle`로 앵커에서 만든다(AGENTS.md 애니메이션 품질 규칙). 요청에 없는 방향·동작·시안은 만들지 않는다.
+
+## 동작 생성 (Pixel Engine 기본)
+- 동작은 `sprite.py animate <앵커 native> sprites/<캐릭터>/<동작>_<방향> --prompt ... --frames N`으로 만든다.
+  앵커 자체를 움직이므로 얼굴·비율·색이 유지된다. 이어서 `sheet OUT/raw OUT --compare <앵커 native>`.
+- 비용: v1.5 26크레딧(기본), v1.1 20크레딧(짝수 프레임). 시작 전 잔액을 확인하고(`pe_call('/balance')`), 쓸 크레딧을 보고한다.
+  실패한 작업은 차감되지 않는다. 같은 동작의 재생성은 1회까지 승인 없이, 그 이상은 묻는다.
+- 팔을 머리 위로 드는 동작처럼 키가 커지면 `sheet ... --cell 96`. 빠른 동작은 중간 프레임이 빠질 수 있다 → `inbetween`.
+- 키가 없거나 크레딧이 모자라면 GPT 동작 시트(스킬 5-6단계)로 대신하고 그 사실을 알린다.
 
 ## 작업 창 (herdr)
 herdr가 켜져 있으면(`herdr agent list`로 확인) 사용자가 작업을 볼 수 있도록 herdr 창의 모델에 맡긴다.
-이미지 생성은 codex 창에, 후처리·검수는 Opus(claude) 창에 `herdr agent prompt <창> "..." --wait`로 보낸다.
+이미지 생성은 codex 창에, 후처리·검수는 Opus(claude) 창에 보낸다: `herdr agent prompt <창> "..."`(`--wait` 없이) 후
+`herdr agent wait <창> --until idle --until done`. `prompt --wait`는 /clear 뒤에 끝나지 않은 적이 있다.
 창 ID는 세션마다 다르다. herdr가 없으면 `sprite.py gen`과 sprite-qa 서브에이전트를 쓴다.
+Codex 생성 요청에는 항상 "Do not resize or edit the result with code; save the generated image as is"를 넣는다
+(넣지 않으면 1254px 결과를 스스로 1024로 줄인 적이 있다).
 
 ## 색 재칠 (AGENTS.md 색 문법)
 동작 시트의 프레임이 확정되면 `sheet ... --ramps project/palettes/endesga-32.md`로 `colors.tsv` 초안을 만들고, 애매한 재질을 고친 뒤 표를 채팅으로 보여 **시트마다 사용자 승인**을 받는다. 승인되면 `--table`로 재칠하고 `review.aseprite` 경로와 check 결과를 보고한다. 재조립할 때도 `--table`을 넘긴다.
@@ -64,6 +85,7 @@ herdr가 켜져 있으면(`herdr agent list`로 확인) 사용자가 작업을 �
 - 새 캐릭터를 시작하기 전에 Codex 창과 Opus 창에 /clear를 보내 컨텍스트를 비운다.
 
 ## 사용자에게 먼저 물을 것
+- 새 캐릭터의 기준 방향 (west 옆모습, south 정면 등)
 - 컨셉 자체를 바꿔야 할 때 (예: 실루엣이 너무 복잡해서 단순화가 필요할 때)
 - 요청에 없던 방향이나 동작을 추가할 때
 - 한 이미지가 1회 재생성으로도 해결되지 않을 때
