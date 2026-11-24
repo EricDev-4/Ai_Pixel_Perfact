@@ -28,7 +28,6 @@ project/                   게임 프로젝트 폴더에 복사할 설정
   .claude/agents/sprite-qa.md   검수 서브에이전트
   .claude/settings.json    이 프로젝트에서 끌 플러그인 (없으면 무시됨)
   sprites/AGENTS.md        Codex 규칙
-  .mcp.json                Pixel Engine MCP 서버 (OAuth 로그인, 키 없음)
   tools/sprite-player.html PNG 시트/프레임 루프 재생기 (브라우저)
   tools/player-app/        같은 재생기의 macOS 앱 (build.sh로 빌드)
 docs/side-view-plan.md     옆모습 1방향 기준 캐릭터별 애니메이션 구성과 플랜별 생성량
@@ -45,7 +44,7 @@ requirements.txt           Python 패키지
 | Python 3.9 이상 | `sprite.py` 실행 | macOS 기본 또는 `brew install python` | 3.9.6 |
 | Pillow, numpy | 이미지 처리 | 아래 3단계 | `requirements.txt` |
 | [herdr](https://herdr.dev) (선택) | 각 모델의 작업 창을 띄워 진행 과정 보기 | herdr.dev 안내 참고 | 0.9.5 |
-| [Pixel Engine](https://pixelengine.ai) (선택) | 앵커를 그대로 움직이는 애니메이션 생성 | 가입 후 Account → API에서 키 발급 | API v1, 2026-11 |
+| [PixelLab](https://www.pixellab.ai) (선택) | 앵커를 그대로 움직이는 애니메이션 생성 | 가입 후 계정 설정에서 API 키 발급 | API v2, 2026-11 |
 
 macOS(Homebrew)에서만 확인했습니다. Windows와 Linux는 시험하지 않았습니다.
 
@@ -77,11 +76,10 @@ cp -R project/. /path/to/your-game-project/
 # 7. 자체 점검: 마지막 줄이 ok 이면 정상
 ~/.claude/skills/pixel-sprite/.venv/bin/python ~/.claude/skills/pixel-sprite/test_sprite.py
 
-# 8. (선택) Pixel Engine API 키: 파일에 키 한 줄만 저장 (본인만 읽기)
-mkdir -p ~/.config/pixelengine && chmod 700 ~/.config/pixelengine
-touch ~/.config/pixelengine/api_key && chmod 600 ~/.config/pixelengine/api_key
-open -e ~/.config/pixelengine/api_key          # pe_sk_... 붙여 넣고 저장
-# MCP는 project/.mcp.json에 들어 있음: Claude Code에서 /mcp → pixelengine → Authenticate
+# 8. (선택) PixelLab API 키: 파일에 키 한 줄만 저장 (본인만 읽기)
+mkdir -p ~/.config/pixellab && chmod 700 ~/.config/pixellab
+touch ~/.config/pixellab/api_key && chmod 600 ~/.config/pixellab/api_key
+open -e ~/.config/pixellab/api_key             # 키 붙여 넣고 저장 (Windows: %USERPROFILE%\.config\pixellab\api_key)
 
 # 9. (선택) 재생기 macOS 앱 빌드 (Xcode Command Line Tools 필요)
 sh /path/to/your-game-project/tools/player-app/build.sh   # → tools/build/Sprite Player.app
@@ -109,7 +107,7 @@ sh /path/to/your-game-project/tools/player-app/build.sh   # → tools/build/Spri
 
 게임 엔진에서는 텍스처 필터를 **Nearest(Point)** 로 설정해야 확대해도 선명합니다.
 
-### Pixel Engine으로 동작 만들기 (권장)
+### PixelLab으로 동작 만들기 (권장)
 
 GPT로 동작 시트를 새로 그리는 대신, 승인된 앵커 자체를 움직입니다. 얼굴·비율·색이 프레임마다 바뀌지 않습니다.
 
@@ -121,8 +119,8 @@ $S/.venv/bin/python $S/sprite.py sheet sprites/banana/walk_west/raw sprites/bana
   --compare sprites/banana/anchor_west_native.png
 ```
 
-- pixel 모드는 출력 프레임이 입력과 같은 크기라 도트 크기가 유지됩니다. 팔레트는 앵커 색으로 고정하고, 학습 사용 거부(`training_opt_out`)를 보냅니다.
-- 1회 26크레딧(v1.5) 또는 20크레딧(`--model pixel-engine-v1.1`, 짝수 프레임). 실패한 작업은 차감되지 않습니다.
+- 출력 프레임이 입력과 같은 크기라 도트 크기가 유지됩니다. 팔레트 고정은 없으므로 색은 `colors.tsv` 재칠과 `check`로 맞춥니다. 학습 사용 거부 옵션도 없습니다.
+- 모델: `v3`(기본, 짝수 4~16프레임), `--model pixminimax`(beta, 4의 배수 4~40프레임). 공격처럼 원래 자세로 돌아와야 하면 `--last-anchor`.
 - 팔을 머리 위로 드는 동작처럼 키가 커지면 `sheet ... --cell 96`으로 칸을 키웁니다.
 - 결과 확인: `open -a "tools/build/Sprite Player.app" sprites/banana/walk_west/sheet.png`
 
@@ -130,7 +128,7 @@ $S/.venv/bin/python $S/sprite.py sheet sprites/banana/walk_west/raw sprites/bana
 
 - **기준 방향은 캐릭터마다 사용자에게 묻고**(west 옆모습, south 정면 등) 그 한 방향만 만듭니다. 좌우 반대쪽은 게임 엔진에서 반전합니다.
 - **캐릭터 일관성:** 새 캐릭터는 기준 캐릭터(현재 바나나)의 AI 원본을 스타일 레퍼런스로 붙이고, 같은 도트 격자로 강제 스냅합니다.
-- **동작은 Pixel Engine이 기본**입니다. 키가 없거나 크레딧이 모자라면 GPT 동작 시트로 대신합니다.
+- **동작은 PixelLab이 기본**입니다. 키가 없거나 잔액이 모자라면 GPT 동작 시트로 대신합니다.
 - **생성 예산:** 캐릭터당 이미지 1장, 요청한 동작당 1회가 기준입니다. 재생성은 이미지당 1회까지 자동으로 하고, 그 이상은 사용자에게 묻습니다.
 - **도트 크기 통일:** 모든 파일은 도트 1칸 = 1px이고 엔진에서 2배로 키웁니다. AI 그림은 정해진 격자(1024 그림 16px, 포즈 보드 8px)로 snap하고 리사이즈하지 않습니다. 동작 시트는 `sprite.py sheet ... --compare <앵커 native 파일>`로 처리하며, 키가 앵커와 2칸 넘게 다르면 경고합니다.
 - **파일 정리:** 확인용 확대본은 남기지 않고, 채택한 AI 원본만 `originals/`에 보관합니다.
@@ -139,7 +137,6 @@ $S/.venv/bin/python $S/sprite.py sheet sprites/banana/walk_west/raw sprites/bana
 
 - **Codex 이미지 크기:** 요청한 크기를 따르지 않습니다(1024 요청 → 1254, 2048x1536 요청 → 1448x1086). 후처리에는 문제가 없습니다.
 - **격자 불일치:** 모델이 생성 격자를 지키지 않으면 `grid ... not honoured` 경고가 나옵니다. 그 그림은 도트 크기가 다를 수 있으니 재생성하는 것이 좋습니다.
-- **Pixel Engine 공격 동작:** 들어 올리기는 잘 나오지만 빠른 내려치기 사이 중간 프레임이 빠지거나 마지막에 원래 자세로 덜 돌아올 수 있습니다. 중간 프레임은 `inbetween`, 복귀는 첫 프레임 복사로 보완합니다.
 - **걷기 동작 (GPT 시트):** 이미지 모델이 걷기를 어려워합니다. `USAGE.md`의 걷기 전략(4프레임 키포즈 + 중간 프레임)을 참고하세요.
 - **맵 타일셋:** 아직 지원하지 않습니다. 이음새 처리와 격자 자르기가 필요해서 별도 워크플로우가 필요합니다.
 - **아이템:** 직접 생성한 GPT 이미지를 `sprite.py snap` / `sheet`로 후처리할 수 있지만, 배경이 단색 마젠타(#FF00FF)가 아니면 배경 제거가 되지 않습니다.

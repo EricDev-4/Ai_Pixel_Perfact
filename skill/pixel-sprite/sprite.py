@@ -240,56 +240,57 @@ def cmd_idle(a):
     print(f"idle: {a.frames} frames, rows 0-{waist - 1} of {h} sink 1 dot in frames {a.frames // 2 + 1}-{a.frames} -> {raw}")
 
 
-PE_API = "https://api.pixelengine.ai/functions/v1"
-PE_MAX = {"pixel-engine-v1.1": 256, "pixel-engine-v1.5": 320}  # pixel-mode input px per side
+PL_API = "https://api.pixellab.ai/v2"
+PL_MAX = 256  # PixelLab animation input px per side (v3 also: w*h*frames <= 524288)
 
 
-def pe_call(path, body=None):
-    kf = Path.home() / ".config/pixelengine/api_key"
-    key = (os.environ.get("PIXELENGINE_API_KEY") or (kf.read_text().strip() if kf.exists() else "")
-           or sys.exit(f"set PIXELENGINE_API_KEY or put the key in {kf} (pixelengine.ai -> Account -> API)"))
-    req = urllib.request.Request(PE_API + path, data=json.dumps(body).encode() if body else None,
+def pl_call(path, body=None):
+    kf = Path.home() / ".config/pixellab/api_key"
+    key = (os.environ.get("PIXELLAB_API_KEY") or (kf.read_text().strip() if kf.exists() else "")
+           or sys.exit(f"set PIXELLAB_API_KEY or put the key in {kf} (pixellab.ai -> account -> API)"))
+    req = urllib.request.Request(PL_API + path, data=json.dumps(body).encode() if body else None,
                                  headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"})
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=120) as r:
             return json.load(r)
     except urllib.error.HTTPError as e:
-        sys.exit(f"Pixel Engine {path}: HTTP {e.code} {e.read().decode(errors='replace')[:500]}")
+        sys.exit(f"PixelLab {path}: HTTP {e.code} {e.read().decode(errors='replace')[:500]}")
 
 
-def pe_request(anchor, prompt, frames, model, canvas, seed=None):
-    """/animate body: the anchor native (1 dot = 1 px) at the bottom centre of a magenta canvas with room
-    for the motion; the pixel pipeline returns frames at the input size, so the dot size is kept.
-    Palette locked to the anchor's own colours so the character's colours cannot drift."""
-    if model == "pixel-engine-v1.1" and frames % 2:
-        sys.exit("pixel-engine-v1.1 needs an even frame count (2-16)")
+def b64png(img):
+    buf = io.BytesIO()
+    img.save(buf, "PNG")
+    return {"type": "base64", "base64": base64.b64encode(buf.getvalue()).decode(), "format": "png"}
+
+
+def pl_request(anchor, prompt, frames, model, canvas, seed=None, last_anchor=False):
+    """-> (endpoint, body). The anchor native (1 dot = 1 px) sits at the bottom centre of a transparent
+    canvas with room for the motion; frames come back at the input size, so the dot size is kept.
+    PixelLab has no palette lock: colours are fixed afterwards by `sheet --table` + `check`."""
+    if model == "v3" and (frames % 2 or not 4 <= frames <= 16):
+        sys.exit("v3 needs an even frame count 4-16")
+    if model == "pixminimax" and (frames % 4 or not 4 <= frames <= 40):
+        sys.exit("pixminimax needs a frame count that is a multiple of 4, 4-40")
     src = clean(Image.open(anchor))
     src = src.crop(src.getbbox())
     side = max(canvas, src.width + 4, src.height + 4)
-    if side > PE_MAX[model]:
-        sys.exit(f"canvas {side}px exceeds {PE_MAX[model]}px for {model}")
-    bg = Image.new("RGB", (side, side), KEY)
+    if side > PL_MAX or (model == "v3" and side * side * frames > 524288):
+        sys.exit(f"canvas {side}px x {frames} frames exceeds the PixelLab limit for {model}")
+    bg = Image.new("RGBA", (side, side), (0, 0, 0, 0))
     bg.paste(src, ((side - src.width) // 2, side - src.height - 2), src)
-    cols = sorted("#%02x%02x%02x" % c for _, c in bg.getcolors(64) or sys.exit("anchor has > 64 colours"))
-    buf = io.BytesIO()
-    bg.save(buf, "PNG")
-    body = {"image": base64.b64encode(buf.getvalue()).decode(), "prompt": prompt, "model": model,
-            "output_frames": frames, "output_format": "spritesheet", "matte_color": "FF00FF",
-            "pixel_config": {"palette": cols}, "training_opt_out": True}
-    if model == "pixel-engine-v1.5":
-        body["render_mode"] = "pixel"
-    if seed:
-        body["seed"] = seed
-    return body
+    body = {"first_frame": b64png(bg), "frame_count": frames, "no_background": True, "seed": seed or 0}
+    if last_anchor:  # end on the anchor pose: attacks return to the start instead of stopping short
+        body["last_frame"] = b64png(bg)
+    body["action" if model == "v3" else "description"] = prompt
+    return ("/animate-with-text-v3" if model == "v3" else "/animate-pixminimax"), body
 
 
-def split_strip(strip, n):
-    """Pixel Engine spritesheet = one horizontal strip of n equal frames -> RGB frames on magenta."""
-    strip = strip.convert("RGBA")
-    fw = strip.width // n
+def pl_frames(images, model):
+    """last_response.images (base64, maybe data: URLs) -> RGB frames on magenta.
+    pixminimax returns frame_count + 1 images; index 0 is the unchanged input."""
     out = []
-    for i in range(n):
-        fr = strip.crop((i * fw, 0, (i + 1) * fw, strip.height))
+    for im in images[1:] if model == "pixminimax" else images:
+        fr = Image.open(io.BytesIO(base64.b64decode(im["base64"].split(",")[-1]))).convert("RGBA")
         bg = Image.new("RGB", fr.size, KEY)
         bg.paste(fr, (0, 0), fr)
         out.append(bg)
@@ -297,31 +298,30 @@ def split_strip(strip, n):
 
 
 def cmd_animate(a):
-    """Animate the anchor with Pixel Engine -> OUT/pe_strip.png (AI original) + OUT/raw/NN.png;
-    then build with `sheet OUT/raw OUT --compare <anchor>`. Failed jobs are not charged."""
+    """Animate the anchor with PixelLab -> OUT/raw/NN.png (AI originals);
+    then build with `sheet OUT/raw OUT --compare <anchor>`."""
     out = Path(a.out)
     raw = out / "raw"
     if raw.exists() and any(raw.iterdir()):
         sys.exit(f"{raw} already has frames; choose a new OUT folder or remove it")
     prompt = Path(a.prompt[1:]).read_text().strip() if a.prompt.startswith("@") else a.prompt
-    job = pe_call("/animate", pe_request(a.anchor, prompt, a.frames, a.model, a.canvas, a.seed))["api_job_id"]
-    print(f"submitted job {job} ({a.model}, {a.frames} frames); waiting (~90 s)", flush=True)
+    path, body = pl_request(a.anchor, prompt, a.frames, a.model, a.canvas, a.seed, a.last_anchor)
+    job = pl_call(path, body)["background_job_id"]
+    print(f"submitted job {job} ({a.model}, {a.frames} frames); waiting (30-180 s)", flush=True)
     deadline = time.time() + a.timeout
-    while (j := pe_call(f"/jobs?id={job}"))["status"] not in ("success", "failure", "cancelled"):
+    while (j := pl_call(f"/background-jobs/{job}"))["status"] not in ("completed", "failed"):
         if time.time() > deadline:
-            sys.exit(f"timeout; the job keeps running: GET /jobs?id={job}")
+            sys.exit(f"timeout; the job keeps running: GET /background-jobs/{job}")
         time.sleep(4)
-    if j["status"] != "success":
-        sys.exit(f"job {job} {j['status']}: {j.get('error')} (not charged)")
+    if j["status"] != "completed":
+        sys.exit(f"job {job} failed: {(j.get('last_response') or {}).get('detail')}")
+    frames = pl_frames(j["last_response"]["images"], a.model)
     raw.mkdir(parents=True, exist_ok=True)
-    urllib.request.urlretrieve(j["output"]["url"], strip := out / "pe_strip.png")
-    meta = j["output"].get("metadata") or {}
-    frames = split_strip(Image.open(strip), meta.get("frame_count") or a.frames)
     for i, fr in enumerate(frames, 1):
         fr.save(raw / f"{i:02}.png")
-    print(f"{len(frames)} frames {frames[0].width}x{frames[0].height}, charged "
-          f"{(j.get('billing') or {}).get('credits_charged')} credits -> {raw}\n"
+    print(f"{len(frames)} frames {frames[0].width}x{frames[0].height}, cost {j.get('usage')} -> {raw}\n"
           f"next: sprite.py sheet {raw} {out} --compare {a.anchor}")
+
 
 
 def extract_frames(sheet, min_frac=0.08, f=1, glue=1):
@@ -753,11 +753,12 @@ def main(argv=None):
     r.add_argument("anchor"); r.add_argument("out")
     r.add_argument("--frames", type=int, default=8)
     r.add_argument("--waist", type=int, help="rows from the top of the character that move (default 70%% of its height)")
-    r = s.add_parser("animate", help="animate the anchor native with Pixel Engine (needs PIXELENGINE_API_KEY): writes OUT/raw")
+    r = s.add_parser("animate", help="animate the anchor native with PixelLab (needs PIXELLAB_API_KEY): writes OUT/raw")
     r.add_argument("anchor"); r.add_argument("out")
     r.add_argument("--prompt", required=True, help="motion text or @file")
     r.add_argument("--frames", type=int, default=8)
-    r.add_argument("--model", choices=sorted(PE_MAX), default="pixel-engine-v1.5", help="v1.5 = 26 credits, v1.1 = 20 (even frames)")
+    r.add_argument("--model", choices=["v3", "pixminimax"], default="v3", help="v3: even 4-16 frames; pixminimax (beta): multiple of 4, 4-40")
+    r.add_argument("--last-anchor", action="store_true", help="end on the anchor pose (attacks); not for loops")
     r.add_argument("--canvas", type=int, default=128, help="square canvas px around the anchor (room for the motion)")
     r.add_argument("--seed", type=int); r.add_argument("--timeout", type=int, default=600)
     r = s.add_parser("up", help="integer NN enlargement of a native frame (generation reference)")

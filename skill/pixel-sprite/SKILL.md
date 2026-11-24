@@ -49,12 +49,13 @@ Always Read the result before continuing. Reject and regenerate on identity drif
    - Missing in-between: `prompt inbetween --set MOTION_NOTE="..."` → refs `[anchor_west, up(raw/03.png), up(raw/04.png)]` → `put gen_mid.png raw/03b.png --match raw/03.png --match raw/04.png`.
    - Rebuild: `sheet sprites/<c>/<action>/raw sprites/<c>/<action> --compare anchor_west_native.png ...` (re-extracting into a non-empty raw/ is refused on purpose).
 
-## Pixel Engine animation (default for action sheets; GPT sheets in steps 5-6 are the fallback)
-Animates the approved anchor native itself, so identity, dot size and colours stay fixed (pixel mode returns frames at the input size; palette locked to the anchor's colours; training opt-out sent). Use it for every requested action except idle; fall back to GPT sheets only without a key or credits, and say so.
-- Check the balance first (`.venv/bin/python -c "import sprite; print(sprite.pe_call('/balance'))"` in `$S`) and report the credits the job will use. One regeneration per action without approval.
-- Tall poses (arms over the head) exceed the 64-dot cell → `sheet ... --cell 96`. Fast strikes can skip the mid-swing frame → `inbetween`; an unfinished recovery → append a copy of frame 01.
-- Needs `PIXELENGINE_API_KEY` (pixelengine.ai → Account → API). Costs credits: v1.5 = 26 (3-16 frames, default), v1.1 = 20 (even frames). Failed jobs are not charged.
-- `animate anchor_<dir>_native.png sprites/<c>/<action>_<dir> --prompt "walking cycle, ..." --frames 8 [--canvas 128] [--model pixel-engine-v1.1] [--seed N]` → `OUT/pe_strip.png` (AI original → move to `originals/`) + `OUT/raw/NN.png`.
+## PixelLab animation (default for action sheets; GPT sheets in steps 5-6 are the fallback)
+Animates the approved anchor native itself (frames come back at the input size), so identity and dot size stay fixed. PixelLab has no palette lock and no training opt-out: colours are fixed by the step 7 colour table + `check`. Use it for every requested action except idle; fall back to GPT sheets only without a key or balance, and say so.
+- **Every PixelLab generation needs the user's explicit approval first, including regenerations** (user rule, 2026-11-21). Before each `animate` call, tell the user the character, action, model, frames, canvas, prompt and current balance, then wait for a yes. Approval covers only that one call.
+- Check the balance first (`.venv/bin/python -c "import sprite; print(sprite.pl_call('/balance'))"` in `$S`) and report what the job will use.
+- Use the character's cell from `cell.txt` for `--canvas` and `--cell` (ask the user if it is missing). Fast strikes can skip the mid-swing frame → `inbetween`; an unfinished recovery → append a copy of frame 01.
+- Needs `PIXELLAB_API_KEY` or the key in `~/.config/pixellab/api_key`. Models: `v3` (default, even 4-16 frames, w×h×frames ≤ 524288) and `pixminimax` (beta, multiple of 4, 4-40 frames). Canvas max 256 px. Cost is reported per job (`usage`).
+- `animate anchor_<dir>_native.png sprites/<c>/<action>_<dir> --prompt "walking cycle, ..." --frames 8 [--canvas 128] [--model pixminimax] [--last-anchor] [--seed N]` → `OUT/raw/NN.png` (AI originals). `--last-anchor` ends on the anchor pose: use it for attacks, not loops.
 - Then `sheet OUT/raw OUT --compare anchor_<dir>_native.png [--anchor torso]` and review / colours / fix exactly as steps 6-8. One call per direction; mirror east from west in the engine.
 
 ## Walk cycle strategy (image model is weak at walk)
