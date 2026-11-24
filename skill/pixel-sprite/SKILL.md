@@ -39,7 +39,7 @@ Always Read the result before continuing. Reject and regenerate on identity drif
    Outputs raw/ (native crops), frames/ and sheet.png (1 dot = 1 px), preview.gif (x4, viewing only). Prints `frames: 1=01.png ...` — `--pick` uses those positions.
 7. Review (Read raw/ + sheet.png): pick frames, find wrong weapon hand / broken poses / height warnings. Then fix → step 8.
 7b. Colours (AGENTS.md palette rules; do this after the frames are final):
-   - Draft: add `--ramps <palette .md>` (current: `project/palettes/endesga-32.md`) to the `sheet` run → `OUT/colors.tsv` (source, pixels, material, target, note). Never overwritten once it exists.
+   - Draft: add `--ramps <palette .md>` (current: `project/palettes/softmilk-32.md`) to the `sheet` run → `OUT/colors.tsv` (source, pixels, material, target, note). Never overwritten once it exists.
    - Check every row against the frames: fix wrong materials (rows marked `ambiguous` first; e.g. a dark pot interior is wood, not purple), keep targets in the same material ramp in brightness order. Show the table to the user in chat. **The user approves the table for every sheet.**
    - Apply: `sheet OUT/raw OUT --table OUT/colors.tsv [--pick ...]` → recoloured frames/ + sheet.png, `palette.hex` (character palette), `review.aseprite` (layers before / after / mat_<material>, palette loaded) and an automatic `check` (off-palette, ≤16 colours, semi-transparency, union). Pass `--table` on every later rebuild.
    - Corrections: colour-level → edit colors.tsv and re-apply; pixel-level → the user edits the `after` layer in Aseprite, saves, then `review-import OUT` (takes that layer as final frames/ + sheet.png and re-runs check).

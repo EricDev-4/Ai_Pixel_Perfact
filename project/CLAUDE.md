@@ -66,7 +66,7 @@ Codex 생성 요청에는 항상 "Do not resize or edit the result with code; sa
 (넣지 않으면 1254px 결과를 스스로 1024로 줄인 적이 있다).
 
 ## 색 재칠 (AGENTS.md 색 문법)
-동작 시트의 프레임이 확정되면 `sheet ... --ramps project/palettes/endesga-32.md`로 `colors.tsv` 초안을 만들고, 애매한 재질을 고친 뒤 표를 채팅으로 보여 **시트마다 사용자 승인**을 받는다. 승인되면 `--table`로 재칠하고 `review.aseprite` 경로와 check 결과를 보고한다. 재조립할 때도 `--table`을 넘긴다.
+동작 시트의 프레임이 확정되면 `sheet ... --ramps project/palettes/softmilk-32.md`로 `colors.tsv` 초안을 만들고, 애매한 재질을 고친 뒤 표를 채팅으로 보여 **시트마다 사용자 승인**을 받는다. 승인되면 `--table`로 재칠하고 `review.aseprite` 경로와 check 결과를 보고한다. 재조립할 때도 `--table`을 넘긴다.
 
 ## 파일 정리
 채택한 이미지의 AI 원본은 `sprites/<캐릭터>/originals/`로 옮기고, 탈락하거나 교체된 원본은 지운다.

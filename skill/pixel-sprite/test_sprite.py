@@ -21,6 +21,19 @@ def fake_snapper(src, dst, pixel_size=None, colors=16):
 
 sprite.run_snapper = fake_snapper
 
+# All Softmilk colors survive the magenta key and the edge-spill pass
+# even next to an outline dark enough to activate spill replacement.
+softmilk = sprite.read_hex(Path(__file__).resolve().parents[2] / "project/palettes/softmilk-32.hex")
+assert len(softmilk) == 32
+for color in softmilk:
+    probe = Image.new("RGBA", (9, 9), (*sprite.KEY, 255))
+    probe.paste((*color, 255), (2, 2, 7, 7))
+    probe.paste((35, 33, 61, 255), (3, 3, 6, 6))
+    assert not sprite.is_key(np.asarray(probe))[2, 2], color
+    cleaned = sprite.clean(probe)
+    assert cleaned.getpixel((2, 2)) == (*color, 255), color
+    assert cleaned.getpixel((0, 0))[3] == 0
+
 # 2x2 board of 512 cells; each "character" = body + head, drifting position per frame.
 board = Image.new("RGB", (1024, 1024), sprite.KEY)
 d = ImageDraw.Draw(board)

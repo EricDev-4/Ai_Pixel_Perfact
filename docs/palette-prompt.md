@@ -1,6 +1,6 @@
 # 팔레트 규칙 (색 문법) — 최종 검토본
 
-상태: **사용자 승인 2026-11-17**. 규칙은 `AGENTS.md`(CLAUDE.md가 import)에 반영. 공용 팔레트는 ENDESGA 32(`project/palettes/endesga-32.hex`). 프롬프트 템플릿·`sprite.py` 반영은 아직.
+규칙은 `AGENTS.md`에 반영되어 있다. 현재 공용 팔레트는 Softmilk 32(`project/palettes/softmilk-32.hex`)이며 재질 램프는 `project/palettes/softmilk-32.md`를 쓴다.
 작성: Claude + Codex 토론 결과, 2026-11-17.
 
 ## 원칙

@@ -9,18 +9,25 @@ from PIL import Image
 
 HERE = Path(__file__).resolve().parent
 SNAPPER = "spritefusion-pixel-snapper"
-KEY = (255, 0, 255)  # chroma magenta: no ENDESGA 32 colour is keyed out (green #63c74d was)
+KEY = (255, 0, 255)
+SOFTMILK_PINKS = ((0x9e, 0x44, 0x91), (0xd9, 0x5b, 0x9a))
 CELL = 64  # runtime frame cell in dots (1 dot = 1 px in every saved file; the engine scales x2)
 SRC_GRID = 1024 // CELL  # 16 px per dot on a 1024 single-frame generation
 BOARD_GRID = 512 // CELL  # 8 px per dot on the 2048x1536 pose board (512 px cells)
 
 
 # ---------- helpers ----------
+def is_softmilk_pink(rgb):
+    """Protect exact palette shades that overlap the chroma tolerance."""
+    return (rgb == SOFTMILK_PINKS[0]).all(-1) | (rgb == SOFTMILK_PINKS[1]).all(-1)
+
+
 def is_key(a):
     """Chroma-magenta mask for an RGB(A) uint8 array (tolerant: AI + quantized magentas drift)."""
     a = a.astype(int)
     r, g, b = a[..., 0], a[..., 1], a[..., 2]
     m = (r > 120) & (b > 120) & (np.minimum(r, b) - g > 70)
+    m &= ~is_softmilk_pink(a[..., :3])
     if a.shape[-1] == 4:
         m |= a[..., 3] < 128
     return m
@@ -365,7 +372,7 @@ def clean(img, speck=3):
     rgb = a[..., :3].astype(int)
     edge = solid & dilate(~solid, 1)
     lo = np.minimum(rgb[..., 0], rgb[..., 2])
-    spill = edge & (lo > 100) & (lo - rgb[..., 1] > 60)  # ENDESGA #ff0044 #68386c #b55088 stay untouched
+    spill = edge & (lo > 100) & (lo - rgb[..., 1] > 60) & ~is_softmilk_pink(rgb)
     dark = solid & ~spill & (rgb.max(-1) < 80)
     if spill.any() and dark.any():
         a[spill, :3] = np.median(rgb[dark], axis=0).astype(np.uint8)
@@ -772,7 +779,7 @@ def main(argv=None):
     r.add_argument("--compare", help="anchor *_native.png: warn if the sheet's character height differs (never resizes)")
     r.add_argument("--colors", type=int, default=32)
     r.add_argument("--cell", type=int, default=CELL, help="cell size in dots"); r.add_argument("--cols", type=int)
-    r.add_argument("--ramps", help="palette ramps .md (e.g. project/palettes/endesga-32.md): write a draft OUT/colors.tsv")
+    r.add_argument("--ramps", help="palette ramps .md (e.g. project/palettes/softmilk-32.md): write a draft OUT/colors.tsv")
     r.add_argument("--table", help="approved colors.tsv: recolour, write palette.hex + review.aseprite, then check")
     r.add_argument("--fps", type=int, default=10)
     r = s.add_parser("put", help="insert a fixed / in-between frame into raw/, scaled to match frames")
