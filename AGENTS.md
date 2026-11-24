@@ -2,6 +2,8 @@
 
 AI 이미지 생성(GPT Image)으로 픽셀아트 스프라이트를 만드는 프로젝트. 파이프라인은 `skill/pixel-sprite/` (`SKILL.md`, `sprite.py`, `templates/`).
 
+에셋 작업은 `D:\Ai_PixelArt\workspace\<종류>\<이름>`에서 진행한다. 픽셀퍼펙트 처리를 마치고 검사한 에셋당 최종 PNG 한 장만 `D:\Ai_PixelArt\workspace\PixelPerfact\<에셋명>.png`에 저장한다. 생성 원본·시안·검토본·프레임·미리보기는 작업 폴더에 보관한다. 애니메이션의 최종 PNG는 합쳐진 시트 한 장이다.
+
 ## 색 문법 (Palette rules) — 승인 2026-11-17
 
 목표는 **색 일관성**이고 팔레트는 그 수단이다. 우선순위:

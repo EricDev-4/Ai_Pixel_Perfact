@@ -13,6 +13,10 @@ Multi-model setup (Fable conductor, Opus `sprite-qa`, Codex generator): `ORCHEST
 
 `S=~/.claude/skills/pixel-sprite` · run `$S/.venv/bin/python $S/sprite.py <cmd>`.
 
+## Ai_PixelArt output location
+
+For this project, use `D:\Ai_PixelArt\workspace\<type>\<asset>` as the working directory. Keep originals, intermediate frames, review files and previews there. Resolve paths such as `sprites/<c>/` against the workspace. Once the pixel-perfect asset is finished and checked, publish exactly one final PNG per asset directly as `D:\Ai_PixelArt\workspace\PixelPerfact\<asset>.png`. For an animation, publish the packed sheet.
+
 ## Setup check (once per session)
 - `command -v spritefusion-pixel-snapper` — missing → ask the user to run `! brew install Hugo-Dz/tap/spritefusion-pixel-snapper` (don't build from source).
 - `$S/.venv` missing → `python3 -m venv $S/.venv && $S/.venv/bin/pip install pillow numpy`.
