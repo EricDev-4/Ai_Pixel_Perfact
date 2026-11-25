@@ -23,7 +23,11 @@ sprite.run_snapper = fake_snapper
 
 # All Softmilk colors survive the magenta key and the edge-spill pass
 # even next to an outline dark enough to activate spill replacement.
-softmilk = sprite.read_hex(Path(__file__).resolve().parents[2] / "project/palettes/softmilk-32.hex")
+# Inline copy of project/palettes/softmilk-32.hex: the installed skill has no project/ folder next to it.
+SOFTMILK_HEX = ("23213d d95b9a 9e4491 633662 903d62 bd515a d69a4e f3d040 ffe88c f2f2f0 94e092 1f9983 22636b 57546f "
+                "c56876 76747d 5c3841 945848 d17f6b eb9f7f f1c28f b9b5c3 454194 425bbd 4884d4 45a1de 7cd8eb e2f266 "
+                "c3d442 82aa28 597f1e 376129").split()
+softmilk = [tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) for h in SOFTMILK_HEX]
 assert len(softmilk) == 32
 for color in softmilk:
     probe = Image.new("RGBA", (9, 9), (*sprite.KEY, 255))
