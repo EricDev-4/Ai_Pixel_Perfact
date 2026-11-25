@@ -33,6 +33,9 @@ for color in softmilk:
     cleaned = sprite.clean(probe)
     assert cleaned.getpixel((2, 2)) == (*color, 255), color
     assert cleaned.getpixel((0, 0))[3] == 0
+# AI drift around the two pinks survives too (a ~#a04490 cap was keyed out), real magenta drift does not
+drift = np.array([[[160, 70, 147], [222, 95, 150], [250, 5, 248], [230, 20, 235]]], np.uint8)
+assert sprite.is_key(drift)[0].tolist() == [False, False, True, True]
 
 # 2x2 board of 512 cells; each "character" = body + head, drifting position per frame.
 board = Image.new("RGB", (1024, 1024), sprite.KEY)
@@ -194,5 +197,20 @@ with tempfile.TemporaryDirectory() as t:
     fr = sprite.pl_frames(ims, "v3")
     assert len(fr) == 2 and fr[1].size == (10, 12) and fr[1].getpixel((0, 0)) == sprite.KEY
     assert fr[1].getpixel((5, 5)) == (255, 255, 255) and len(sprite.pl_frames(ims, "pixminimax")) == 1
+
+    # --no-align keeps PixelLab registration (jump height) and --publish writes the indexed final
+    jr = Path(t) / "jump" / "raw"; jr.mkdir(parents=True)
+    for i, top in enumerate((20, 4)):
+        fimg = Image.new("RGB", (32, 32), sprite.KEY)
+        ImageDraw.Draw(fimg).rectangle([12, top, 19, top + 7], fill=(66, 91, 189))
+        fimg.save(jr / f"{i + 1:02}.png")
+    (Path(t) / "jump" / "colors.tsv").write_text("# source\tpixels\tmaterial\ttarget\tnote\n#425bbd\t1\tblue\t#425bbd\t\n")
+    fin = Path(t) / "final" / "x_jump_sheet.png"
+    assert sprite.main(["sheet", str(jr), str(Path(t) / "jump"), "--no-align", "--cell", "32",
+                        "--table", str(Path(t) / "jump" / "colors.tsv"), "--publish", str(fin)]) is True
+    pub = Image.open(fin)
+    assert pub.mode == "P" and pub.size == (64, 32)
+    tops = [pub.convert("RGBA").crop((i * 32, 0, i * 32 + 32, 32)).getbbox()[1] for i in range(2)]
+    assert tops == [20, 4], tops
 
 print("ok")

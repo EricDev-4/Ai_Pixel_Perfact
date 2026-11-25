@@ -17,9 +17,11 @@ BOARD_GRID = 512 // CELL  # 8 px per dot on the 2048x1536 pose board (512 px cel
 
 
 # ---------- helpers ----------
-def is_softmilk_pink(rgb):
-    """Protect exact palette shades that overlap the chroma tolerance."""
-    return (rgb == SOFTMILK_PINKS[0]).all(-1) | (rgb == SOFTMILK_PINKS[1]).all(-1)
+def is_softmilk_pink(rgb, tol=40):
+    """Protect palette shades that overlap the chroma tolerance, incl. AI drift around them
+    (a GPT cap painted ~#a04490 was keyed out as background). Magenta is >140 away from both."""
+    d = np.asarray(rgb, int)[..., None, :] - np.array(SOFTMILK_PINKS)
+    return ((d * d).sum(-1) < tol * tol).any(-1)
 
 
 def is_key(a):
@@ -440,7 +442,8 @@ def cmd_sheet(a):
     if bad:
         sys.exit(f"--pick out of range {bad}; have {len(files)} frames")
     chosen = [files[i - 1] for i in pick]
-    frames = [c.crop(c.getbbox()) for c in (clean(Image.open(f)) for f in chosen)]  # drop transparent margins
+    full = [clean(Image.open(f)) for f in chosen]
+    frames = full if a.no_align else [c.crop(c.getbbox()) for c in full]  # drop transparent margins
 
     heights = [f.getbbox()[3] - f.getbbox()[1] for f in frames]
     med = float(np.median(heights))
@@ -473,10 +476,16 @@ def cmd_sheet(a):
             write_table(tsv, rows)
             print(f"draft colour table ({len(rows)} colours, {sum(1 for r in rows if r[4])} ambiguous) -> {tsv}")
 
-    aligned = align(frames, a.anchor)
-    w, h = aligned[0].size
-    ax, ay = anchor_point(aligned[0], a.anchor)  # identical for every aligned frame
-    ox, oy = a.cell // 2 - ax, a.cell - 1 - ay  # anchor -> bottom centre of the cell
+    if a.no_align:  # PixelLab already registered every frame on the CELL canvas: keep jump height / lunge offset
+        bad = [f.name for f, img in zip(chosen, frames) if img.size != (a.cell, a.cell)]
+        if bad:
+            sys.exit(f"--no-align needs frames of exactly {a.cell}x{a.cell} (the animate --canvas): {bad}")
+        aligned, (w, h), ox, oy = frames, frames[0].size, 0, 0
+    else:
+        aligned = align(frames, a.anchor)
+        w, h = aligned[0].size
+        ax, ay = anchor_point(aligned[0], a.anchor)  # identical for every aligned frame
+        ox, oy = a.cell // 2 - ax, a.cell - 1 - ay  # anchor -> bottom centre of the cell
     if ox < 0 or oy < 0 or ox + w > a.cell or oy + h > a.cell:
         print(f"WARNING frames ({w}x{h} dots around the anchor) do not fit the {a.cell}x{a.cell} cell and are cropped")
     (out / "frames").mkdir(parents=True, exist_ok=True)
@@ -498,15 +507,36 @@ def cmd_sheet(a):
     print(f"preview (x{k}, viewing only) -> {out/'preview.gif'}")
     if before is not None:
         bcells = []
-        for img in align(before, a.anchor):  # same alpha as the remapped frames -> same placement
+        for img in before if a.no_align else align(before, a.anchor):  # same alpha as the remapped frames -> same placement
             c = Image.new("RGBA", (a.cell, a.cell), (0, 0, 0, 0)); c.paste(img, (ox, oy), img); bcells.append(c)
         palette = sorted({t for _, t in table.values()}, key=luma)
         (out / "palette.hex").write_text("".join(hexc(c)[1:] + "\n" for c in palette))
         print(f"character palette ({len(palette)} colours) -> {out / 'palette.hex'}")
         write_review(out, pack(bcells, cols, a.cell), sheet, table, palette)
         (out / "review" / "frames.txt").write_text("\n".join(f.name for f in chosen), encoding="utf-8")
-        return cmd_check(argparse.Namespace(inputs=[str(out / "frames"), str(out / "sheet.png")],
-                                            palette=str(out / "palette.hex"), max_colors=16))
+        ok = cmd_check(argparse.Namespace(inputs=[str(out / "frames"), str(out / "sheet.png")],
+                                          palette=str(out / "palette.hex"), max_colors=16))
+        if a.publish:
+            if not ok:
+                print(f"NOT published to {a.publish}: check is REVIEW, fix or approve the exceptions first")
+                return ok
+            save_indexed(sheet, a.publish, palette)
+            print(f"final indexed sheet -> {a.publish}")
+            ok = cmd_check(argparse.Namespace(inputs=[a.publish], palette=str(out / "palette.hex"), max_colors=16))
+        return ok
+    if a.publish:
+        print("NOT published: --publish needs --table (the approved colour table)")
+
+
+def save_indexed(img, path, palette):
+    """Final deliverable (AGENTS.md): 8-bit indexed PNG, index 0 transparent, then the character palette."""
+    idx = {tuple(c): i + 1 for i, c in enumerate(palette)}
+    rgba = img.convert("RGBA")
+    out = Image.new("P", rgba.size, 0)
+    out.putpalette([0, 0, 0] + [v for c in palette for v in c])
+    out.putdata([idx[p[:3]] if p[3] == 255 else 0 for p in rgba.getdata()])
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    out.save(path, transparency=0)
 
 
 def cmd_put(a):
@@ -782,6 +812,10 @@ def main(argv=None):
     r.add_argument("--ramps", help="palette ramps .md (e.g. project/palettes/softmilk-32.md): write a draft OUT/colors.tsv")
     r.add_argument("--table", help="approved colors.tsv: recolour, write palette.hex + review.aseprite, then check")
     r.add_argument("--fps", type=int, default=10)
+    r.add_argument("--no-align", action="store_true",
+                   help="keep raw frames where they are (PixelLab frames already on a CELL canvas): jumps keep their height")
+    r.add_argument("--publish", help="with --table and a PASS check: write the final 8-bit indexed sheet here "
+                                     "(e.g. workspace/PixelPerfact/sheet/<char>_<action>_sheet.png)")
     r = s.add_parser("put", help="insert a fixed / in-between frame into raw/, scaled to match frames")
     r.add_argument("input"); r.add_argument("out")
     r.add_argument("--match", action="append", required=True, help="raw frame(s) whose height to compare")

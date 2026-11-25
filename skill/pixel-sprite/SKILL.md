@@ -15,7 +15,7 @@ Multi-model setup (Fable conductor, Opus `sprite-qa`, Codex generator): `ORCHEST
 
 ## Ai_PixelArt output location
 
-For this project, use `D:\Ai_PixelArt\workspace\<type>\<asset>` as the working directory. Keep originals, intermediate frames, review files and previews there. Resolve paths such as `sprites/<c>/` against the workspace. Once the pixel-perfect asset is finished and checked, publish exactly one final PNG per asset directly as `D:\Ai_PixelArt\workspace\PixelPerfact\<asset>.png`. For an animation, publish the packed sheet.
+For this project, use `D:\Ai_PixelArt\workspace\<type>\<asset>` as the working directory. Keep originals, intermediate frames, review files and previews there. Resolve paths such as `sprites/<c>/` against the workspace. Once the pixel-perfect asset is finished and checked, publish exactly one final PNG per asset directly as `D:\Ai_PixelArt\workspace\PixelPerfact\<asset>.png`. For an animation, publish the packed sheet as `D:\Ai_PixelArt\workspace\PixelPerfact\sheet\<char>_<action>_sheet.png` (e.g. `slime_jump_sheet.png`) with `sheet ... --table ... --publish <path>`.
 
 ## Setup check (once per session)
 - `command -v spritefusion-pixel-snapper` — missing → ask the user to run `! brew install Hugo-Dz/tap/spritefusion-pixel-snapper` (don't build from source).
@@ -62,6 +62,13 @@ Animates the approved anchor native itself (frames come back at the input size),
 - Needs `PIXELLAB_API_KEY` or the key in `~/.config/pixellab/api_key`. Models: `v3` (default, even 4-16 frames, w×h×frames ≤ 524288) and `pixminimax` (beta, multiple of 4, 4-40 frames). Canvas max 256 px. Cost is reported per job (`usage`).
 - `animate anchor_<dir>_native.png sprites/<c>/<action>_<dir> --prompt "walking cycle, ..." --frames 8 [--canvas 128] [--model pixminimax] [--last-anchor] [--seed N]` → `OUT/raw/NN.png` (AI originals). `--last-anchor` ends on the anchor pose: use it for attacks, not loops.
 - Then `sheet OUT/raw OUT --compare anchor_<dir>_native.png [--anchor torso]` and review / colours / fix exactly as steps 6-8. One call per direction; mirror east from west in the engine.
+- **Proven flow (slime, 2026-11-24):**
+  1. Recolour the anchor first (colour table → anchor palette, magenta background, 1-dot margin) and animate that file, so frames start on the character palette. Publish the still as `workspace/PixelPerfact/<char>.png`.
+  2. Contact-sheet all `raw/` frames and review. v3 returns frames + 1: frame 01 is the unchanged anchor, the last is often a duplicate of it (drop it for loops with `--pick`).
+  3. Bad frames: drop with `--pick`; a small wrong part (e.g. drips that read as legs) → edit `raw/NN.png` and keep the AI frame in `originals/`.
+  4. Colours: PixelLab keeps the anchor colours and adds only edge strays (1-20 px). Map every stray to the anchor colour of its own material (blue → blue ramp, cap → wood, dark grey → outline). Show the table; the user approves each sheet.
+  5. Build and publish: `sheet OUT/raw OUT --no-align --cell <cell.txt> --pick ... --table OUT/colors.tsv --publish workspace/PixelPerfact/sheet/<char>_<action>_sheet.png`. `--no-align` keeps PixelLab's registration (jump height, body offset); without it frames are re-aligned to the feet and a jump goes flat. `--publish` writes the 8-bit indexed final only when the check passes, then re-checks the saved file.
+- Limits seen 2026-11-24: v3 does not move the whole body sideways (a lunge or dash stays in place, twice) and may add swing-trail effects. Keep attacks in place and add the lunge offset in the engine. Prompts that say "stretch at most ~20 %" keep a blob compact.
 
 ## Walk cycle strategy (image model is weak at walk)
 A. One sheet with `walkguide_8` (stick figures; red = near limbs, blue = far limbs). Check leg order frame by frame.
