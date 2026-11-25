@@ -5,3 +5,5 @@ __pycache__/
 project/sprites/*/
 .claude/settings.local.json
 project/tools/build/
+# third-party reference images, not ours to redistribute
+docs/references/

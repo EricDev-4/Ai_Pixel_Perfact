@@ -36,7 +36,7 @@ Pixel Snapper가 없으면 스킬이 실행되지 않습니다.
 ⑦ 검수·수정            Claude가 문제 프레임 찾음 → 그 프레임만 재생성
 ```
 
-에셋 작업은 `D:\Ai_PixelArt\workspace\<종류>\<이름>`에서 진행한다. 픽셀퍼펙트 처리를 마치고 검사한 에셋당 최종 PNG 한 장만 `D:\Ai_PixelArt\workspace\PixelPerfact\<에셋명>.png`에 저장한다. 생성 원본·시안·검토본·프레임·미리보기는 작업 폴더에 보관한다. 애니메이션의 최종 PNG는 합쳐진 시트 한 장이며 `D:\Ai_PixelArt\workspace\PixelPerfact\sheet\<캐릭터>_<동작>_sheet.png`에 저장한다.
+에셋 작업은 `workspace\<종류>\<이름>`에서 진행한다. 픽셀퍼펙트 처리를 마치고 검사한 에셋당 최종 PNG 한 장만 `workspace\PixelPerfact\<에셋명>.png`에 저장한다. 생성 원본·시안·검토본·프레임·미리보기는 작업 폴더에 보관한다. 애니메이션의 최종 PNG는 합쳐진 시트 한 장이며 `workspace\PixelPerfact\sheet\<캐릭터>_<동작>_sheet.png`에 저장한다.
 
 ---
 

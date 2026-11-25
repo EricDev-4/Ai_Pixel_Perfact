@@ -15,7 +15,7 @@ Multi-model setup (Fable conductor, Opus `sprite-qa`, Codex generator): `ORCHEST
 
 ## Ai_PixelArt output location
 
-For this project, use `D:\Ai_PixelArt\workspace\<type>\<asset>` as the working directory. Keep originals, intermediate frames, review files and previews there. Resolve paths such as `sprites/<c>/` against the workspace. Once the pixel-perfect asset is finished and checked, publish exactly one final PNG per asset directly as `D:\Ai_PixelArt\workspace\PixelPerfact\<asset>.png`. For an animation, publish the packed sheet as `D:\Ai_PixelArt\workspace\PixelPerfact\sheet\<char>_<action>_sheet.png` (e.g. `slime_jump_sheet.png`) with `sheet ... --table ... --publish <path>`.
+For this project, use `workspace\<type>\<asset>` as the working directory. Keep originals, intermediate frames, review files and previews there. Resolve paths such as `sprites/<c>/` against the workspace. Once the pixel-perfect asset is finished and checked, publish exactly one final PNG per asset directly as `workspace\PixelPerfact\<asset>.png`. For an animation, publish the packed sheet as `workspace\PixelPerfact\sheet\<char>_<action>_sheet.png` (e.g. `slime_jump_sheet.png`) with `sheet ... --table ... --publish <path>`.
 
 ## Setup check (once per session)
 - `command -v spritefusion-pixel-snapper` — missing → ask the user to run `! brew install Hugo-Dz/tap/spritefusion-pixel-snapper` (don't build from source).
